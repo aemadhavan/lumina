@@ -177,7 +177,7 @@ threadsRouter.post('/threads/:threadId/ask', async (req: Request, res: Response)
 
   // Check thread existence
   const threads = await threadsCollection();
-  let thread = await threads.findOne({ _id: threadId, userId });
+  const thread = await threads.findOne({ _id: threadId, userId });
 
   if (!thread) {
     // If unknown thread, return 404
