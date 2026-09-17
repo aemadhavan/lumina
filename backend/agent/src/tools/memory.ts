@@ -57,8 +57,11 @@ export async function recallMemory(input: RecallMemoryInput): Promise<RecalledMe
   const cleanQuery = input.query.trim();
   if (!cleanQuery) return [];
 
-  const queryEmbedding = await getEmbedding(cleanQuery);
   const col = await memoriesCollection();
+  const count = await col.countDocuments({ userId: input.userId }, { limit: 1 });
+  if (count === 0) return [];
+
+  const queryEmbedding = await getEmbedding(cleanQuery);
   const limit = input.limit ?? 3;
 
   try {
