@@ -89,6 +89,20 @@ app.use(memoryRouter);
 app.use(spacesRouter);
 app.use(statsRouter);
 
+app.get('/evals/report.json', async (_req, res) => {
+  try {
+    const database = await (await import('./db.js')).db();
+    const doc = await database.collection<{ _id: string; report: unknown }>('reports').findOne({ _id: 'latest' });
+    if (doc && doc.report) {
+      res.setHeader('content-type', 'application/json');
+      return res.status(200).send(JSON.stringify(doc.report));
+    }
+  } catch (err) {
+    console.warn('Failed to load report from Mongo:', err);
+  }
+  res.status(404).json({ error: 'report not found', status: 404 });
+});
+
 // ---------------------------------------------------------------- everything else: 501
 
 const notImplemented = (route: string) => (_req: express.Request, res: express.Response) => {

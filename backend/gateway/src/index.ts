@@ -170,7 +170,7 @@ app.get('/health', async (_req, res) => {
 });
 
 // GET /evals/report.json
-app.get('/evals/report.json', (_req, res) => {
+app.get('/evals/report.json', async (_req, res) => {
   const reportPaths = [
     resolve(process.cwd(), 'reports/report.json'),
     resolve(process.cwd(), 'eval/report.json'),
@@ -188,6 +188,18 @@ app.get('/evals/report.json', (_req, res) => {
         // continue
       }
     }
+  }
+
+  // Fallback: proxy to agent service to retrieve report from MongoDB
+  try {
+    const upstream = await fetch(`${env.agentUrl}/evals/report.json`);
+    if (upstream.ok) {
+      const data = await upstream.text();
+      res.setHeader('content-type', 'application/json');
+      return res.status(200).send(data);
+    }
+  } catch {
+    // continue
   }
 
   res.status(404).json({
