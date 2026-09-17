@@ -1,0 +1,15 @@
+node_modules/
+dist/
+web/dist/
+.env
+.env.*
+!.env.example
+runs/
+reports/
+*.log
+.DS_Store
+.linear_token
+scripts/.linear_token
+scratch/
+.agents/
+.claude/

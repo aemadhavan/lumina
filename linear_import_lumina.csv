@@ -1,0 +1,55 @@
+Title,Description,Status,Priority,Project,Labels
+"US-1: System Architecture, Scaffolding & System Design Document","Unpack workspace, verify monorepo builds, setup environment keys, and author DESIGN.md answering the 5 system design questions.",Todo,Urgent,Lumina,story
+"Task 1.1: Unpack monorepo files into workspace root and preserve course notes","Move all Assignment_1_Lumina files into root workspace and keep FDE-01.docx intact.",Todo,Urgent,Lumina,task
+"Task 1.2: Monorepo dependency installation & typecheck verification","Run npm install and npm run typecheck across packages/contract, backend/gateway, backend/agent, web.",Todo,Urgent,Lumina,task
+"Task 1.3: Configure .env with environment variables & provider keys","Setup MONGODB_URI, ANTHROPIC_API_KEY, TAVILY_API_KEY, and OPENAI_API_KEY in .env.",Todo,Urgent,Lumina,task
+"Task 1.4: Author DESIGN.md answering the 5 mandatory system design questions","Author DESIGN.md answering Components, Responsibilities, Communication, State, and Trade-offs.",Todo,Urgent,Lumina,task
+"US-2: MongoDB Atlas Vector Search, Text & Cache Indexing","Connect to MongoDB Atlas, create vector indexes for chunks and memories, text index, and search cache TTL index.",Todo,Urgent,Lumina,story
+"Task 2.1: Establish connection to MongoDB Atlas cluster (lumina db)","Verify database ping and Atlas cluster connectivity.",Todo,Urgent,Lumina,task
+"Task 2.2: Execute scripts/create-indexes.mjs for vector, text, and TTL indexes","Create chunks_vector_index, memories_vector_index, chunks_text_search, and search_cache_ttl.",Todo,Urgent,Lumina,task
+"Task 2.3: Verify async index build status via --status probe until queryable","Poll scripts/create-indexes.mjs --status until all indexes report queryable.",Todo,Urgent,Lumina,task
+"US-3: Agent Service Quick Search Engine & Streaming SSE Harness","Build the core ReAct agent loop, web_search and fetch_page tools, two-tier cache, and unbuffered SSE stream.",Todo,Urgent,Lumina,story
+"Task 3.1: Implement MongoDB database client & GridFS bucket (backend/agent/src/db.ts)","Initialize MongoClient and GridFS bucket for file storage.",Todo,Urgent,Lumina,task
+"Task 3.2: Implement GET /health with live component dependency reporting","Report health status of db, model, search provider, and vector store.",Todo,Urgent,Lumina,task
+"Task 3.3: Implement web_search and fetch_page tools with query normalization","Execute Tavily/SerpApi search and full HTML page extraction.",Todo,Urgent,Lumina,task
+"Task 3.4: Implement two-tier search cache (in-memory LRU + MongoDB searchCache TTL)","Cache web search queries by SHA-256 hash and report searchCached accurately.",Todo,Urgent,Lumina,task
+"Task 3.5: Implement Quick ReAct agent loop with hard caps (8 tool calls, 90s) and fail-loud semantics","Enforce hard caps and fail-loud on exceptions (HTTP 502).",Todo,Urgent,Lumina,task
+"Task 3.6: Implement unbuffered SSE streaming (POST /threads/:id/ask) with sources preceding tokens","Stream trace -> sources -> token -> done; sources MUST arrive before first token.",Todo,Urgent,Lumina,task
+"Task 3.7: Implement thread and message persistence (POST/GET/DELETE /threads)","Persist conversation history and inject into follow-up requests.",Todo,Urgent,Lumina,task
+"Task 3.8: Implement runs/<requestId>.json execution logging conforming to contract schema","Write RunLog JSON file for quality checker assertions.",Todo,Urgent,Lumina,task
+"US-4: Semantic Long-Term Memory System","Implement save_memory and recall_memory over vector indexes, REST endpoints, and cross-thread persistence.",Todo,High,Lumina,story
+"Task 4.1: Implement save_memory tool using text-embedding-3-small stored with userId","Embed user preferences and save to memories collection.",Todo,High,Lumina,task
+"Task 4.2: Implement recall_memory tool with vector similarity search","Query memories using cosine similarity filtered by userId.",Todo,High,Lumina,task
+"Task 4.3: Implement REST endpoints (GET /memory, DELETE /memory/:id)","Provide list and deletion endpoints for user memories.",Todo,High,Lumina,task
+"Task 4.4: Verify cross-thread memory recall and deletion behavior","Ensure preference saved in Thread A influences Thread B, and disappears when deleted.",Todo,High,Lumina,task
+"US-5: Asynchronous Document Ingestion & Hybrid RAG Engine","Implement Spaces, 202 async upload to GridFS, background jobs worker for chunking & embedding, read-your-write probe, and hybrid search.",Todo,Urgent,Lumina,story
+"Task 5.1: Implement Spaces management endpoints (/spaces)","Create, read, and delete document spaces.",Todo,Urgent,Lumina,task
+"Task 5.2: Implement POST /spaces/:id/documents multipart upload to GridFS returning 202 in < 300ms","Handle file upload and enqueue job in jobs collection.",Todo,Urgent,Lumina,task
+"Task 5.3: Implement background jobs worker (backend/agent/src/worker.ts) for PDF parsing, chunking, and embedding","Parse PDFs with page locators, chunk text, and embed with OpenAI.",Todo,Urgent,Lumina,task
+"Task 5.4: Implement read-your-write probe to verify vector search readiness before marking document indexed","Perform probe query against Atlas Vector Search before setting document status to indexed.",Todo,Urgent,Lumina,task
+"Task 5.5: Implement hybrid search fusion ($vectorSearch + $search via RRF) with page locators (p. N)","Combine vector and text search using Reciprocal Rank Fusion with page numbers.",Todo,Urgent,Lumina,task
+"Task 5.6: Validate against 39-question Gold Set (eval/gold/rag_gold.jsonl) achieving Recall@5 >= 0.70","Verify RAG recall on the provided Gold Set meets or exceeds 0.70.",Todo,Urgent,Lumina,task
+"US-6: Deep Search (Pro Search) & Daily Spend Gate","Implement query decomposition into 3-6 sub-questions, plan event prior to retrieval, citation merging, and daily spend cap (429).",Todo,Urgent,Lumina,story
+"Task 6.1: Implement plan_research tool generating 3-6 sub-questions with rationales","Decompose complex queries into 3 to 6 sub-questions.",Todo,Urgent,Lumina,task
+"Task 6.2: Stream plan event prior to any retrieval; strictly ban quick runs from plan_research","Stream plan SSE event before retrieval; ban quick runs from calling planner.",Todo,Urgent,Lumina,task
+"Task 6.3: Implement research fan-out, per-step subQuestion tagging, and merged contiguous citation numbering","Tag trace steps and sources with subQuestion, merge citations [1..N].",Todo,Urgent,Lumina,task
+"Task 6.4: Enforce deep search daily limit DEEP_DAILY_CAP (5) returning 429 { error, resetsAt }","Track daily deep search count per user and enforce 429 rate limit.",Todo,Urgent,Lumina,task
+"Task 6.5: Enforce deep budget caps (24 tool calls, 240s wall clock, max $0.35 cost)","Enforce hard caps on deep search execution.",Todo,Urgent,Lumina,task
+"US-7: Edge Gateway Validation, Proxying & Rate Limiting","Build the gateway edge proxy enforcing X-User-Id, request tracing, Zod validation, rate limiting, and SSE stream pass-through.",Todo,Urgent,Lumina,story
+"Task 7.1: Implement X-User-Id authentication guard (401 if missing)","Reject unauthenticated requests with HTTP 401.",Todo,Urgent,Lumina,task
+"Task 7.2: Implement X-Request-Id correlation and Pino structured logging","Propagate request ID across gateway and agent logs.",Todo,Urgent,Lumina,task
+"Task 7.3: Implement Zod schema validation using @lumina/contract (400 on bad payload)","Validate inbound HTTP requests using contract schemas.",Todo,Urgent,Lumina,task
+"Task 7.4: Implement per-user rate limiting (429)","Rate limit requests per user ID.",Todo,Urgent,Lumina,task
+"Task 7.5: Implement transparent reverse proxy and unbuffered SSE pass-through to agent service","Proxy requests to agent service on port 8000.",Todo,Urgent,Lumina,task
+"Task 7.6: Implement /health, /stats, and /evals/report.json endpoints","Serve health, reconciled stats, and evals report.",Todo,Urgent,Lumina,task
+"US-8: Automated Quality Gates, Trajectory Recording & Benchmarking","Run benchmarks against declared SLA, execute quality checks, capture successful and failing trajectories (Rule P1), and compile evals report.",Todo,High,Lumina,story
+"Task 8.1: Run smoke and full SLA benchmarks (node benchmark/bench.mjs) ensuring all SLA metrics pass","Verify latency, grounding, recall, cache hit rate, and cost SLA.",Todo,High,Lumina,task
+"Task 8.2: Run quality checks (node quality/check.mjs .) ensuring zero errors","Run quality assertions over runs/ directory.",Todo,High,Lumina,task
+"Task 8.3: Capture valid run in runs/ and deliberate failing trajectory in runs/failing/ (Rule P1)","Save successful and deliberately broken trajectories for evaluation.",Todo,High,Lumina,task
+"Task 8.4: Execute six-gate evaluation runner (node eval/eval.mjs) and compile /evals report","Run evaluation runner and generate report.json.",Todo,High,Lumina,task
+"US-9: Multi-Service Deployment & Final Submission","Deploy private agent service and gateway to Fly.io/serverless, deploy UI to Vercel, run remote eval, and verify zero key leakage.",Todo,High,Lumina,story
+"Task 9.1: Deploy private Agent Service to Fly.io with secure environment secrets","Deploy backend/agent with private networking.",Todo,High,Lumina,task
+"Task 9.2: Deploy Gateway Service to Fly.io / serverless","Deploy backend/gateway with public endpoint.",Todo,High,Lumina,task
+"Task 9.3: Deploy React UI to Vercel with VITE_API_URL pointing to public gateway","Deploy web/ to Vercel and set gateway URL.",Todo,High,Lumina,task
+"Task 9.4: Run remote evaluation against deployed gateway (node eval/eval.mjs --deploy-url <url>)","Run eval suite against production deployment.",Todo,High,Lumina,task
+"Task 9.5: Verify zero secret exposure, working / and /evals pages, and prepare final URL submission","Verify submission checklist and submit live Vercel URL.",Todo,High,Lumina,task
