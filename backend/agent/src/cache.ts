@@ -123,31 +123,33 @@ export async function setCachedSearch(
   const key = searchCacheKey(normalizedQuery, provider);
   const ttlMs = env.searchCacheTtlSeconds * 1000;
 
-  // Store in Tier 1
+  // Store in Tier 1 immediately
   inMemorySearchCache.set(key, results, ttlMs);
 
-  // Store in Tier 2 (MongoDB)
-  try {
-    const col = await searchCacheCollection();
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + ttlMs);
+  // Store in Tier 2 (MongoDB) asynchronously in background without blocking TTFT
+  void (async () => {
+    try {
+      const col = await searchCacheCollection();
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + ttlMs);
 
-    await col.updateOne(
-      { _id: key },
-      {
-        $set: {
-          provider,
-          query: normalizedQuery,
-          results: results as unknown as Array<Record<string, unknown>>,
-          expiresAt,
-          createdAt: now
-        }
-      },
-      { upsert: true }
-    );
-  } catch (err) {
-    console.warn('SearchCache Tier 2 Mongo write error:', err);
-  }
+      await col.updateOne(
+        { _id: key },
+        {
+          $set: {
+            provider,
+            query: normalizedQuery,
+            results: results as unknown as Array<Record<string, unknown>>,
+            expiresAt,
+            createdAt: now
+          }
+        },
+        { upsert: true }
+      );
+    } catch (err) {
+      console.warn('SearchCache Tier 2 Mongo write error:', err);
+    }
+  })();
 }
 
 let searchCacheHits = 0;

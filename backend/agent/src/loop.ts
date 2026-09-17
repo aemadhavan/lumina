@@ -362,7 +362,7 @@ export async function runQuickLoop(options: LoopOptions): Promise<LoopResult> {
 
         const fetchStart = Date.now();
         try {
-          const pageRes = await executeFetchPage({ url, maxChars: 10000, timeoutMs: 220 });
+          const pageRes = await executeFetchPage({ url, maxChars: 10000, timeoutMs: 120 });
           const fetchMs = Date.now() - fetchStart;
           if (pageRes.content && pageRes.content.length >= 250) {
             const fetchTrace: TraceEvent = {
@@ -541,7 +541,7 @@ Please provide a well-structured, clear, and thoroughly cited answer.`;
   const streamRes = await streamLLMCompletion({
     messages,
     systemPrompt,
-    maxTokens: 800,
+    maxTokens: 500,
     onToken: (tok) => {
       if (!firstTokenEmitted) {
         firstTokenEmitted = true;
