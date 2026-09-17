@@ -44,7 +44,7 @@ Rules:
     messages,
     systemPrompt,
     temperature: 0.2,
-    maxTokens: 1024
+    maxTokens: 400
   });
 
   let rawJson = res.fullText.trim();
