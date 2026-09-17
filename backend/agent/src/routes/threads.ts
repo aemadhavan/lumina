@@ -175,9 +175,16 @@ threadsRouter.post('/threads/:threadId/ask', async (req: Request, res: Response)
   const { query, mode, depth, spaceId } = parsedBody.data;
   const requestedDepth = depth ?? 'quick';
 
-  // Check thread existence
-  const threads = await threadsCollection();
-  const thread = await threads.findOne({ _id: threadId, userId });
+  // Check thread existence and load messages concurrently
+  const [threads, messages] = await Promise.all([
+    threadsCollection(),
+    messagesCollection()
+  ]);
+
+  const [thread, priorDocs] = await Promise.all([
+    threads.findOne({ _id: threadId, userId }),
+    messages.find({ threadId, userId }).sort({ createdAt: 1 }).toArray()
+  ]);
 
   if (!thread) {
     // If unknown thread, return 404
@@ -223,17 +230,14 @@ threadsRouter.post('/threads/:threadId/ask', async (req: Request, res: Response)
     }
   };
 
-  // Load prior messages for history injection
-  const messages = await messagesCollection();
-  const priorDocs = await messages.find({ threadId, userId }).sort({ createdAt: 1 }).toArray();
   const history = priorDocs.map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content
   }));
 
-  // Persist user turn
+  // Persist user turn concurrently in background without blocking TTFT
   const userMsgId = randomUUID();
-  await messages.insertOne({
+  const userInsertPromise = messages.insertOne({
     _id: userMsgId,
     threadId,
     userId,
@@ -275,6 +279,9 @@ threadsRouter.post('/threads/:threadId/ask', async (req: Request, res: Response)
 
     send('done', result.done);
     res.end();
+
+    // Await user turn insertion before persisting assistant message
+    await userInsertPromise;
 
     // Persist assistant message
     const assistantMsgId = randomUUID();
