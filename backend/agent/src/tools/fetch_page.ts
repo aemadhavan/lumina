@@ -24,7 +24,7 @@ function extractHtmlText(html: string): { title: string; text: string } {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'");
 
-  let text = html
+  const text = html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
