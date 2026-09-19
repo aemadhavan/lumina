@@ -8,7 +8,7 @@ import type {
   ToolName
 } from '@lumina/contract';
 import { env } from './env.js';
-import { cachedWebSearch } from './cache.js';
+import { cachedWebSearch, updateCachedSearchResultFetchedContent } from './cache.js';
 import { executeFetchPage } from './tools/fetch_page.js';
 import { saveMemory, recallMemory } from './tools/memory.js';
 import { searchDocuments, formatDocSources } from './tools/search_documents.js';
@@ -371,43 +371,75 @@ export async function runQuickLoop(options: LoopOptions): Promise<LoopResult> {
         log: { name: ToolName; ok: boolean; error?: string; ms?: number };
       }> = [];
 
-      const candidateUrls = Array.from(new Set(activeWebRes.searchRes.results.map((r) => r.url))).filter(
-        (u) => u && !u.endsWith('.pdf') && !u.includes('youtube.com') && !u.includes('youtu.be') && !u.includes('vimeo.com')
-      );
+      // Check if top search result already has cached fetched page content
+      for (const item of activeWebRes.searchRes.results.slice(0, 1)) {
+        if (item.fetchedContent && item.fetchedContent.length >= 100) {
+          const pageRes = {
+            url: item.url,
+            title: item.fetchedTitle || item.title || item.url,
+            content: item.fetchedContent
+          };
+          fetchedPages.push(pageRes);
+          pendingFetches.push({
+            event: {
+              tool: 'fetch_page',
+              input: { url: item.url },
+              ok: true,
+              ms: 0,
+              reason: `retrieved cached page: ${pageRes.title}`
+            },
+            log: { name: 'fetch_page', ok: true, ms: 0 }
+          });
+          break;
+        }
+      }
 
-      for (const url of candidateUrls.slice(0, 1)) {
-        if (isCapReached()) break;
-        const fetchStart = Date.now();
-        try {
-          const pageRes = await executeFetchPage({ url, maxChars: 10000, timeoutMs: 1500 });
-          const fetchMs = Date.now() - fetchStart;
-          if (pageRes.content && pageRes.content.length >= 250) {
+      if (fetchedPages.length === 0) {
+        const candidateUrls = Array.from(new Set(activeWebRes.searchRes.results.map((r) => r.url))).filter(
+          (u) => u && !u.endsWith('.pdf') && !u.includes('youtube.com') && !u.includes('youtu.be') && !u.includes('vimeo.com')
+        );
+
+        for (const url of candidateUrls.slice(0, 1)) {
+          if (isCapReached()) break;
+          const fetchStart = Date.now();
+          try {
+            const pageRes = await executeFetchPage({ url, maxChars: 10000, timeoutMs: 1500 });
+            const fetchMs = Date.now() - fetchStart;
+            if (pageRes.content && pageRes.content.length >= 250) {
+              pendingFetches.push({
+                event: {
+                  tool: 'fetch_page',
+                  input: { url },
+                  ok: true,
+                  ms: fetchMs,
+                  reason: `fetched ${pageRes.content.length} chars: ${pageRes.title}`
+                },
+                log: { name: 'fetch_page', ok: true, ms: fetchMs }
+              });
+              fetchedPages.push(pageRes);
+              updateCachedSearchResultFetchedContent(
+                activeWebRes.searchRes.normalizedQuery,
+                activeWebRes.searchRes.provider,
+                url,
+                pageRes.content,
+                pageRes.title
+              );
+              break;
+            }
+          } catch (fetchErr) {
+            const fetchMs = Date.now() - fetchStart;
+            const errMsg = (fetchErr as Error).message || 'Failed to fetch page';
             pendingFetches.push({
               event: {
                 tool: 'fetch_page',
                 input: { url },
-                ok: true,
+                ok: false,
                 ms: fetchMs,
-                reason: `fetched ${pageRes.content.length} chars: ${pageRes.title}`
+                error: errMsg
               },
-              log: { name: 'fetch_page', ok: true, ms: fetchMs }
+              log: { name: 'fetch_page', ok: false, error: errMsg, ms: fetchMs }
             });
-            fetchedPages.push(pageRes);
-            break;
           }
-        } catch (fetchErr) {
-          const fetchMs = Date.now() - fetchStart;
-          const errMsg = (fetchErr as Error).message || 'Failed to fetch page';
-          pendingFetches.push({
-            event: {
-              tool: 'fetch_page',
-              input: { url },
-              ok: false,
-              ms: fetchMs,
-              error: errMsg
-            },
-            log: { name: 'fetch_page', ok: false, error: errMsg, ms: fetchMs }
-          });
         }
       }
 
@@ -577,7 +609,7 @@ Please provide a well-structured, clear, and thoroughly cited answer.`;
   const streamRes = await streamLLMCompletion({
     messages,
     systemPrompt,
-    maxTokens: 500,
+    maxTokens: 350,
     onToken: (tok) => {
       if (!firstTokenEmitted) {
         firstTokenEmitted = true;

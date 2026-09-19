@@ -230,10 +230,11 @@ threadsRouter.post('/threads/:threadId/ask', async (req: Request, res: Response)
     }
   };
 
-  const priorDocs = await messages.find({ threadId, userId }).sort({ createdAt: 1 }).limit(20).toArray();
+  const priorDocs = await messages.find({ threadId, userId }).sort({ createdAt: -1 }).limit(4).toArray();
+  priorDocs.reverse();
   const history = priorDocs.map((m) => ({
     role: m.role as 'user' | 'assistant',
-    content: m.content
+    content: m.content.length > 500 ? `${m.content.slice(0, 500)}...` : m.content
   }));
 
   // Persist user turn concurrently in background without blocking TTFT

@@ -22,6 +22,16 @@ export interface RecalledMemory {
   createdAt?: string;
 }
 
+const userHasMemoriesCache = new Map<string, boolean>();
+
+export function invalidateUserMemoryCache(userId?: string): void {
+  if (userId) {
+    userHasMemoriesCache.delete(userId);
+  } else {
+    userHasMemoriesCache.clear();
+  }
+}
+
 /**
  * Save a long-term memory fact or preference for a user.
  */
@@ -46,6 +56,7 @@ export async function saveMemory(input: SaveMemoryInput): Promise<MemoryDoc> {
 
   const col = await memoriesCollection();
   await col.insertOne(doc);
+  userHasMemoriesCache.set(input.userId, true);
 
   return doc;
 }
@@ -59,10 +70,19 @@ export async function recallMemory(input: RecallMemoryInput): Promise<RecalledMe
   const cleanQuery = input.query.trim();
   if (!cleanQuery) return [];
 
+  // If we already know this user has no memories, return immediately in 0ms
+  if (userHasMemoriesCache.get(input.userId) === false) {
+    return [];
+  }
+
   const col = await memoriesCollection();
   const limit = input.limit ?? 3;
-  const count = await col.countDocuments({ userId: input.userId }, { limit: 1 });
-  if (count === 0) return [];
+
+  if (!userHasMemoriesCache.has(input.userId)) {
+    const count = await col.countDocuments({ userId: input.userId }, { limit: 1 });
+    userHasMemoriesCache.set(input.userId, count > 0);
+    if (count === 0) return [];
+  }
 
   const queryEmbedding = await getEmbedding(cleanQuery);
 

@@ -10,6 +10,8 @@ export interface SearchResultItem {
   title: string;
   url: string;
   snippet: string;
+  fetchedContent?: string;
+  fetchedTitle?: string;
 }
 
 export interface WebSearchResult {

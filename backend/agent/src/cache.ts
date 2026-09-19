@@ -152,6 +152,24 @@ export async function setCachedSearch(
   })();
 }
 
+export function updateCachedSearchResultFetchedContent(
+  normalizedQuery: string,
+  provider: 'tavily' | 'serpapi',
+  url: string,
+  content: string,
+  title?: string
+): void {
+  const key = searchCacheKey(normalizedQuery, provider);
+  const lruResults = inMemorySearchCache.get(key);
+  if (lruResults) {
+    const item = lruResults.find((r) => r.url === url);
+    if (item) {
+      item.fetchedContent = content;
+      if (title) item.fetchedTitle = title;
+    }
+  }
+}
+
 let searchCacheHits = 0;
 let searchCacheTotal = 0;
 

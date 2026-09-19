@@ -1,6 +1,3 @@
-import { JSDOM, VirtualConsole } from 'jsdom';
-import { Readability } from '@mozilla/readability';
-
 export interface FetchPageInput {
   url: string;
   maxChars?: number;
@@ -15,10 +12,48 @@ export interface FetchPageResult {
   excerpt?: string;
 }
 
-const inMemoryPageCache = new Map<string, FetchPageResult>();
+export const inMemoryPageCache = new Map<string, FetchPageResult>();
+
+function extractHtmlText(html: string): { title: string; text: string } {
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const rawTitle = (titleMatch && titleMatch[1]) ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+  const title = rawTitle
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+
+  let text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
+    .replace(/<header[\s\S]*?<\/header>/gi, ' ')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
+    .replace(/<aside[\s\S]*?<\/aside>/gi, ' ')
+    .replace(/<\/(p|div|h[1-6]|li|tr|blockquote)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&[a-z#0-9]+;/gi, ' ')
+    .replace(/\r\n/g, '\n')
+    .replace(/\t/g, ' ')
+    .replace(/[ ]+/g, ' ')
+    .replace(/\n\s*\n\s*\n+/g, '\n\n')
+    .trim();
+
+  return { title, text };
+}
 
 export async function executeFetchPage(input: FetchPageInput): Promise<FetchPageResult> {
-  const { url, maxChars = 20000, timeoutMs = 2500 } = input;
+  const { url, maxChars = 20000, timeoutMs = 1500 } = input;
   if (inMemoryPageCache.has(url)) {
     return inMemoryPageCache.get(url)!;
   }
@@ -36,32 +71,19 @@ export async function executeFetchPage(input: FetchPageInput): Promise<FetchPage
   }
 
   const html = await res.text();
-  const virtualConsole = new VirtualConsole();
-  virtualConsole.on('error', () => {}); // Suppress non-critical CSS/DOM parse errors
-  const dom = new JSDOM(html, { url, virtualConsole });
-  const reader = new Readability(dom.window.document);
-  const article = reader.parse();
+  const { title, text } = extractHtmlText(html);
 
-  let content = article?.textContent ?? dom.window.document.body?.textContent ?? '';
-  // Clean up whitespace while preserving paragraphs
-  content = content
-    .replace(/\r\n/g, '\n')
-    .replace(/\t/g, ' ')
-    .replace(/[ ]+/g, ' ')
-    .replace(/\n\s*\n\s*\n+/g, '\n\n')
-    .trim();
-
+  let content = text;
   if (maxChars && content.length > maxChars) {
     content = content.slice(0, maxChars) + '...';
   }
 
   const result: FetchPageResult = {
     url,
-    title: article?.title ?? dom.window.document.title ?? url,
-    content,
-    byline: article?.byline ?? undefined,
-    excerpt: article?.excerpt ?? undefined
+    title: title || url,
+    content
   };
   inMemoryPageCache.set(url, result);
   return result;
 }
+

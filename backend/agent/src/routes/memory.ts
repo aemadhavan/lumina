@@ -4,6 +4,7 @@ import {
   ListMemoryResponse
 } from '@lumina/contract';
 import { memoriesCollection } from '../db.js';
+import { invalidateUserMemoryCache } from '../tools/memory.js';
 
 export const memoryRouter = Router();
 
@@ -53,5 +54,6 @@ memoryRouter.delete('/memory/:memoryId', async (req: Request, res: Response) => 
     return;
   }
 
+  invalidateUserMemoryCache(userId);
   res.status(204).end();
 });
