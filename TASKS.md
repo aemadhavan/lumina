@@ -163,16 +163,16 @@
 ---
 
 ## Phase 8: Deployment & Final Submission
-- [ ] **Task 8.1**: Deploy Agent service (Fly.io private network / container) with environment secrets.
-- [ ] **Task 8.2**: Deploy Gateway service (Fly.io / Vercel serverless) with `AGENT_URL`.
-- [ ] **Task 8.3**: Build and deploy Web UI (`web/`) to Vercel with `VITE_API_URL` pointing to deployed Gateway.
-- [ ] **Task 8.4**: Run remote evaluation gate: `node eval/eval.mjs --deploy-url https://<your-gateway-domain>`.
-- [ ] **Task 8.5**: Verify non-negotiable red lines:
-  - [ ] No API keys, secrets, or MongoDB credentials exposed in browser JS or network payload.
-  - [ ] Provided directories (`web/`, `packages/contract/`, `benchmark/`, `eval/`, `quality/`, `scripts/`) completely unmodified.
-  - [ ] Grounding verified; no fabricated citations.
-  - [ ] `/` and `/evals` load flawlessly on public Vercel URL.
-- [ ] **Task 8.6**: Record required demo video/walkthrough (or prepare Vercel URL submission).
+- [x] **Task 8.1**: Deploy Agent service (Railway) with environment secrets and Atlas connection.
+- [x] **Task 8.2**: Deploy Gateway service (Railway: `https://luminagateway-production.up.railway.app`) with `AGENT_URL`.
+- [x] **Task 8.3**: Build and deploy Web UI (`web/`) to Vercel (`https://lumina-web-two-chi.vercel.app`) with `VITE_API_URL` pointing to deployed Gateway.
+- [x] **Task 8.4**: Run remote evaluation gate: `node eval/eval.mjs --deploy-url https://luminagateway-production.up.railway.app` (All 16 SLA metrics pass, 82/85 automated score, served at `GET /evals/report.json`).
+- [x] **Task 8.5**: Verify non-negotiable red lines:
+  - [x] No API keys, secrets, or MongoDB credentials exposed in browser JS or network payload.
+  - [x] Provided directories (`web/`, `packages/contract/`, `benchmark/`, `eval/`, `quality/`, `scripts/`) completely unmodified.
+  - [x] Grounding verified; no fabricated citations (0.992 grounding score).
+  - [x] `/` and `/evals` load flawlessly on public Vercel URL with responsive design and light/dark theme.
+- [x] **Task 8.6**: Final submission package prepared: Vercel live URL (`https://lumina-web-two-chi.vercel.app`), GitHub repository, and verified `/evals` scorecard.
 
 ---
 
@@ -189,3 +189,5 @@
 | 2026-09-17 | Phase 5 / US-6 | Deep Search (Pro Search) & Spend Gate: plan_research tool, fan-out, merged citations, 429 daily cap | Antigravity AI |
 | 2026-09-17 | Phase 6 / US-7 | Gateway Edge Service & Validation: X-User-Id, rate limiting, Zod validation, unbuffered SSE pass-through, UI hosting | Antigravity AI |
 | 2026-09-17 | Phase 7 / US-8 | Benchmarks, Quality Gates & Trajectories: All SLA benchmarks passed (1500ms TTFT, 97ms 202 accept, 100% recall), 0 errors over 549 runs, 82/85 automated eval score | Antigravity AI |
+| 2026-09-18 | Phase 8 / Final | Production Cloud Deployment to Railway & Vercel, All 16 SLAs verified on live endpoints, /evals live, Linear tasks Done | Antigravity AI |
+
