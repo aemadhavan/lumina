@@ -175,24 +175,18 @@ threadsRouter.post('/threads/:threadId/ask', async (req: Request, res: Response)
   const { query, mode, depth, spaceId } = parsedBody.data;
   const requestedDepth = depth ?? 'quick';
 
-  // Check thread existence and load messages concurrently
   const [threads, messages] = await Promise.all([
     threadsCollection(),
     messagesCollection()
   ]);
 
-  const [thread, priorDocs] = await Promise.all([
-    threads.findOne({ _id: threadId, userId }),
-    messages.find({ threadId, userId }).sort({ createdAt: 1 }).toArray()
-  ]);
-
+  // 404 / 429 before SSE. Do not load the full transcript until headers are flushed.
+  const thread = await threads.findOne({ _id: threadId, userId }, { projection: { _id: 1 } });
   if (!thread) {
-    // If unknown thread, return 404
     res.status(404).json({ error: `thread not found: ${threadId}`, status: 404 });
     return;
   }
 
-  // Enforce DEEP_DAILY_CAP per X-User-Id server-side before SSE headers
   if (requestedDepth === 'deep') {
     const runs = await runsCollection();
     const now = new Date();
@@ -216,12 +210,18 @@ threadsRouter.post('/threads/:threadId/ask', async (req: Request, res: Response)
     }
   }
 
-  // Set SSE Headers
-  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'identity');
   res.flushHeaders?.();
+  try {
+    res.socket?.setNoDelay(true);
+  } catch {
+    // ignore
+  }
+  res.write(`:${' '.repeat(2048)}\n\n`);
 
   const send = (event: string, data: unknown) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -230,6 +230,7 @@ threadsRouter.post('/threads/:threadId/ask', async (req: Request, res: Response)
     }
   };
 
+  const priorDocs = await messages.find({ threadId, userId }).sort({ createdAt: 1 }).limit(20).toArray();
   const history = priorDocs.map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content

@@ -15,7 +15,8 @@ import {
   spacesCollection,
   documentsCollection,
   jobsCollection,
-  bucket
+  newGridFsId,
+  putGridFsUpload
 } from '../db.js';
 
 export const spacesRouter = Router();
@@ -84,9 +85,6 @@ spacesRouter.post('/spaces', async (req: Request, res: Response) => {
 
   CreateSpaceResponse.parse(response);
   res.status(200).json(response);
-  void bucket();
-  void documentsCollection();
-  void jobsCollection();
 });
 
 // ---------------------------------------------------------------- GET /spaces
@@ -129,40 +127,25 @@ spacesRouter.post('/spaces/:spaceId/documents', handleUpload, async (req: Reques
     return;
   }
 
-  const [spaces, b, documents, jobs] = await Promise.all([
+  const [spaces, documents, jobs] = await Promise.all([
     spacesCollection(),
-    bucket(),
     documentsCollection(),
     jobsCollection()
   ]);
 
   const docId = newId('doc');
-  const uploadPromise = new Promise<string>((resolve, reject) => {
-    const uploadStream = b.openUploadStream(filename, {
-      metadata: {
-        docId,
-        spaceId,
-        userId,
-        mimeType: req.file!.mimetype
-      }
-    });
-    uploadStream.on('finish', () => resolve(uploadStream.id.toString()));
-    uploadStream.on('error', reject);
-    uploadStream.end(req.file!.buffer);
-  });
-
-  const checkSpacePromise = spaces.findOne({ _id: spaceId as any, userId: userId as any });
-
-  const [space, fileId] = await Promise.all([checkSpacePromise, uploadPromise]);
-  if (!space) {
-    res.status(404).json({ error: `space ${spaceId} not found`, status: 404 });
-    return;
-  }
-
+  const jobId = `job_${docId}`;
+  const fileId = newGridFsId();
   const now = new Date().toISOString();
 
-  const jobId = `job_${docId}`;
-  await Promise.all([
+  const [space] = await Promise.all([
+    spaces.findOne({ _id: spaceId as any, userId: userId as any }),
+    putGridFsUpload(fileId, filename, req.file.buffer, {
+      docId,
+      spaceId,
+      userId,
+      mimeType: req.file.mimetype
+    }),
     documents.insertOne({
       _id: docId as any,
       spaceId: spaceId as any,
@@ -192,6 +175,11 @@ spacesRouter.post('/spaces/:spaceId/documents', handleUpload, async (req: Reques
       createdAt: now
     })
   ]);
+
+  if (!space) {
+    res.status(404).json({ error: `space ${spaceId} not found`, status: 404 });
+    return;
+  }
 
   const response: UploadDocumentResponse = {
     docId: docId as any,

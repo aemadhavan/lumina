@@ -237,9 +237,29 @@ export async function runQuickLoop(options: LoopOptions): Promise<LoopResult> {
       })()
     : null;
 
-  // Wait for initial parallel operations
+  // Recall is optional context. Do not let embed + Atlas vector search hold the web path.
+  const withBudget = <T,>(p: Promise<T> | null, ms: number): Promise<T | null> => {
+    if (!p) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          resolve(null);
+        }
+      }, ms);
+      p.then((value) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(value);
+        }
+      });
+    });
+  };
+
   const [recallRes, docRes, webRes] = await Promise.all([
-    recallPromise,
+    withBudget(recallPromise, 700),
     docSearchPromise,
     webSearchPromise
   ]);

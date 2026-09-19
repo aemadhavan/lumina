@@ -1,4 +1,4 @@
-import { MongoClient, GridFSBucket, type Db, type Collection } from 'mongodb';
+import { MongoClient, GridFSBucket, ObjectId, type Db, type Collection } from 'mongodb';
 import {
   COLLECTIONS,
   GRIDFS_BUCKETS,
@@ -40,6 +40,44 @@ export async function bucket(): Promise<GridFSBucket> {
     cachedBucket = new GridFSBucket(database, { bucketName: GRIDFS_BUCKETS.uploads });
   }
   return cachedBucket;
+}
+
+const GRIDFS_CHUNK = 255 * 1024;
+
+export function newGridFsId(): string {
+  return new ObjectId().toString();
+}
+
+/** One-round-trip GridFS write so POST /documents can 202 without streaming chatter. */
+export async function putGridFsUpload(
+  fileId: string,
+  filename: string,
+  buffer: Buffer,
+  metadata: Record<string, unknown>
+): Promise<void> {
+  const database = await db();
+  const id = new ObjectId(fileId);
+  const files = database.collection(`${GRIDFS_BUCKETS.uploads}.files`);
+  const chunks = database.collection(`${GRIDFS_BUCKETS.uploads}.chunks`);
+  const chunkDocs = [];
+  for (let n = 0, offset = 0; offset < buffer.length; n += 1, offset += GRIDFS_CHUNK) {
+    chunkDocs.push({
+      files_id: id,
+      n,
+      data: buffer.subarray(offset, Math.min(offset + GRIDFS_CHUNK, buffer.length))
+    });
+  }
+  await Promise.all([
+    files.insertOne({
+      _id: id,
+      length: buffer.length,
+      chunkSize: GRIDFS_CHUNK,
+      uploadDate: new Date(),
+      filename,
+      metadata
+    }),
+    chunkDocs.length > 0 ? chunks.insertMany(chunkDocs) : Promise.resolve()
+  ]);
 }
 
 export async function pingDb(): Promise<'ok' | 'down'> {

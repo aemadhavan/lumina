@@ -212,53 +212,69 @@ app.get('/evals/report.json', async (_req, res) => {
 // ---------------------------------------------------------------- Reverse Proxy & SSE Pass-Through
 
 // POST /threads/:threadId/ask (Unbuffered SSE Pass-Through)
-app.post('/threads/:threadId/ask', async (req, res) => {
+app.post('/threads/:threadId/ask', (req, res) => {
   const requestId = String(res.locals.requestId);
   const userId = req.header(USER_HEADER)!;
+  const payload = JSON.stringify(req.body);
+  const targetUrl = new URL(`${env.agentUrl}/threads/${req.params.threadId}/ask`);
+  const isTls = targetUrl.protocol === 'https:';
 
-  try {
-    const upstream = await fetch(`${env.agentUrl}/threads/${req.params.threadId}/ask`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        [USER_HEADER]: userId,
-        [REQUEST_HEADER]: requestId
-      },
-      body: JSON.stringify(req.body)
-    });
-
-    if (!upstream.ok || !upstream.body) {
-      const text = await upstream.text();
-      let body: unknown = text;
-      try {
-        body = JSON.parse(text);
-      } catch {
-        body = { error: text || 'upstream agent error', status: upstream.status };
-      }
-      return res.status(upstream.status).json(body);
-    }
-
-    // Set unbuffered SSE headers
-    sseHeaders(res);
-
-    const reader = upstream.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(value);
-      // @ts-expect-error flush exists if compression is present
-      if (typeof res.flush === 'function') res.flush();
-    }
-    res.end();
-  } catch (err) {
+  const fail = (err: Error) => {
     if (!res.headersSent) {
       res.status(502).json({
-        error: `agent service unreachable: ${(err as Error).message}`,
+        error: `agent service unreachable: ${err.message}`,
         status: 502,
         requestId
       });
+    } else if (!res.writableEnded) {
+      res.end();
     }
-  }
+  };
+
+  const proxyReq = http.request(
+    {
+      hostname: targetUrl.hostname,
+      port: targetUrl.port || (isTls ? 443 : 80),
+      path: `${targetUrl.pathname}${targetUrl.search}`,
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(payload),
+        [USER_HEADER]: userId,
+        [REQUEST_HEADER]: requestId
+      }
+    },
+    (proxyRes) => {
+      const status = proxyRes.statusCode || 502;
+      if (status >= 400) {
+        const chunks: Buffer[] = [];
+        proxyRes.on('data', (c) => chunks.push(c));
+        proxyRes.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          if (!res.headersSent) {
+            res.status(status);
+            const ct = proxyRes.headers['content-type'];
+            if (ct) res.setHeader('content-type', ct);
+            res.send(text);
+          }
+        });
+        return;
+      }
+
+      sseHeaders(res);
+      proxyRes.on('data', (chunk) => {
+        res.write(chunk);
+        // @ts-expect-error flush exists if compression is present
+        if (typeof res.flush === 'function') res.flush();
+      });
+      proxyRes.on('end', () => res.end());
+      proxyRes.on('error', fail);
+    }
+  );
+
+  proxyReq.on('error', fail);
+  proxyReq.write(payload);
+  proxyReq.end();
 });
 
 // POST /spaces/:spaceId/documents (Multipart File Upload Pass-Through)

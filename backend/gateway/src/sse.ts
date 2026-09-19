@@ -11,9 +11,17 @@ export function sseHeaders(res: Response): void {
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
-  // nginx / Fly's proxy will otherwise hold the stream until it has a bufferful.
+  // nginx / Fly / Railway will otherwise hold the stream until it has a bufferful.
   res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'identity');
   res.flushHeaders();
+  try {
+    res.socket?.setNoDelay(true);
+  } catch {
+    // ignore
+  }
+  // SSE comment: defeat ~2KB proxy buffers so the first real event is not held.
+  res.write(`:${' '.repeat(2048)}\n\n`);
 }
 
 /** Write one SSE frame and flush it. The blank line terminates the frame; without it the client waits. */
