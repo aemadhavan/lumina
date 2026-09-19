@@ -268,8 +268,23 @@ export async function processJob(job: JobDoc): Promise<void> {
       { $set: { status: 'parsing', pct: 10 } }
     );
 
-    // 2. Read from GridFS
-    const buffer = await readGridFsFile(fileId);
+    // 2. Read from GridFS (with retry for write replication lag)
+    let buffer: Buffer | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        buffer = await readGridFsFile(fileId);
+        break;
+      } catch (gridFsErr) {
+        if (attempt < 4) {
+          await new Promise((r) => setTimeout(r, 600));
+        } else {
+          throw gridFsErr;
+        }
+      }
+    }
+    if (!buffer) {
+      throw new Error(`Failed to load file ${fileId} from GridFS after 5 attempts`);
+    }
 
     // 3. Parse into chunks with locators
     const rawChunks: Array<{ text: string; locator: Locator }> = [];
