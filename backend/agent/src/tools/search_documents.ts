@@ -30,63 +30,49 @@ export async function searchDocuments(options: SearchDocumentsOptions): Promise<
   const chunksCol = await chunksCollection();
   const docsCol = await documentsCollection();
 
-  // 1. Compute query vector
-  const [queryEmbedding] = await getEmbeddings([query]);
-  if (!queryEmbedding) {
-    throw new Error('Failed to generate embedding for query');
-  }
-
-  // 2. Vector Search channel
-  const vectorPipeline: any[] = [
-    {
-      $vectorSearch: {
-        index: 'chunks_vector',
-        path: 'embedding',
-        queryVector: queryEmbedding,
-        numCandidates: 40,
-        limit: 25,
-        filter: {
-          spaceId: { $eq: spaceId }
-        }
-      }
-    }
-  ];
-
-  // 3. Text Search channel ($search BM25)
-  const textPipeline: any[] = [
+  // Text search does not need an embedding — start it while the query vector is computed.
+  const textSearchPromise = chunksCol.aggregate<ChunkDoc>([
     {
       $search: {
         index: 'chunks_text',
         compound: {
-          must: [
-            {
-              text: {
-                query,
-                path: 'text'
-              }
-            }
-          ],
-          filter: [
-            {
-              equals: {
-                path: 'spaceId',
-                value: spaceId
-              }
-            }
-          ]
+          must: [{ text: { query, path: 'text' } }],
+          filter: [{ equals: { path: 'spaceId', value: spaceId } }]
         }
       }
     },
     { $limit: 25 }
-  ];
+  ]).toArray();
 
-  // Run both channels concurrently
+  let queryEmbedding: number[] | undefined;
+  try {
+    [queryEmbedding] = await getEmbeddings([query]);
+  } catch (err) {
+    await Promise.allSettled([textSearchPromise]);
+    throw err;
+  }
+  if (!queryEmbedding) {
+    await Promise.allSettled([textSearchPromise]);
+    throw new Error('Failed to generate embedding for query');
+  }
+
   let vectorResults: ChunkDoc[] = [];
   let textResults: ChunkDoc[] = [];
 
   const [vecRes, txtRes] = await Promise.allSettled([
-    chunksCol.aggregate<ChunkDoc>(vectorPipeline).toArray(),
-    chunksCol.aggregate<ChunkDoc>(textPipeline).toArray()
+    chunksCol.aggregate<ChunkDoc>([
+      {
+        $vectorSearch: {
+          index: 'chunks_vector',
+          path: 'embedding',
+          queryVector: queryEmbedding,
+          numCandidates: 40,
+          limit: 25,
+          filter: { spaceId: { $eq: spaceId } }
+        }
+      }
+    ]).toArray(),
+    textSearchPromise
   ]);
 
   if (vecRes.status === 'fulfilled') {

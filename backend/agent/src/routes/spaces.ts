@@ -112,7 +112,11 @@ spacesRouter.post('/spaces/:spaceId/documents', handleUpload, async (req: Reques
   const userId = getUserId(req, res);
   if (!userId) return;
 
-  const { spaceId } = req.params;
+  const spaceId = String(req.params.spaceId ?? '');
+  if (!spaceId) {
+    res.status(400).json({ error: 'missing space id', status: 400 });
+    return;
+  }
   if (!req.file) {
     res.status(400).json({ error: 'missing file in request body (field: "file")', status: 400 });
     return;
@@ -127,57 +131,50 @@ spacesRouter.post('/spaces/:spaceId/documents', handleUpload, async (req: Reques
     return;
   }
 
-  const [spaces, documents, jobs] = await Promise.all([
-    spacesCollection(),
-    documentsCollection(),
-    jobsCollection()
-  ]);
+  const spaces = await spacesCollection();
+  const space = await spaces.findOne({ _id: spaceId as any, userId: userId as any });
+  if (!space) {
+    res.status(404).json({ error: `space ${spaceId} not found`, status: 404 });
+    return;
+  }
 
   const docId = newId('doc');
   const jobId = `job_${docId}`;
   const fileId = newGridFsId();
   const now = new Date().toISOString();
+  const buffer = req.file.buffer;
+  const mimeType = req.file.mimetype;
+  const bytes = req.file.size;
 
-  const [space] = await Promise.all([
-    spaces.findOne({ _id: spaceId as any, userId: userId as any }),
-    putGridFsUpload(fileId, filename, req.file.buffer, {
-      docId,
-      spaceId,
-      userId,
-      mimeType: req.file.mimetype
-    }),
-    documents.insertOne({
-      _id: docId as any,
-      spaceId: spaceId as any,
-      userId: userId as any,
-      title: filename,
-      mimeType: req.file.mimetype,
-      bytes: req.file.size,
-      status: 'pending',
-      pct: 0,
-      fileId,
-      createdAt: now
-    }),
-    jobs.insertOne({
-      _id: jobId,
-      kind: 'index_document',
-      status: 'pending',
-      payload: {
-        docId,
-        spaceId,
+  try {
+    const [documents, jobs] = await Promise.all([documentsCollection(), jobsCollection()]);
+    await Promise.all([
+      putGridFsUpload(fileId, filename, buffer, { docId, spaceId, userId, mimeType }),
+      documents.insertOne({
+        _id: docId as any,
+        spaceId: spaceId as any,
+        userId: userId as any,
+        title: filename,
+        mimeType,
+        bytes,
+        status: 'pending',
+        pct: 0,
         fileId,
-        filename,
-        mimeType: req.file.mimetype,
-        bytes: req.file.size
-      },
-      userId: userId as any,
-      attempts: 0,
-      createdAt: now
-    })
-  ]);
-
-  if (!space) {
-    res.status(404).json({ error: `space ${spaceId} not found`, status: 404 });
+        createdAt: now
+      }),
+      jobs.insertOne({
+        _id: jobId,
+        kind: 'index_document',
+        status: 'pending',
+        payload: { docId, spaceId, fileId, filename, mimeType, bytes },
+        userId: userId as any,
+        attempts: 0,
+        createdAt: now
+      })
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'failed to persist document';
+    res.status(502).json({ error: message, status: 502 });
     return;
   }
 
@@ -185,7 +182,6 @@ spacesRouter.post('/spaces/:spaceId/documents', handleUpload, async (req: Reques
     docId: docId as any,
     status: 'pending'
   };
-
   UploadDocumentResponse.parse(response);
   res.status(202).json(response);
 });

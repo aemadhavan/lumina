@@ -237,7 +237,6 @@ export async function runQuickLoop(options: LoopOptions): Promise<LoopResult> {
       })()
     : null;
 
-  // Recall is optional context. Do not let embed + Atlas vector search hold the web path.
   const withBudget = <T,>(p: Promise<T> | null, ms: number): Promise<T | null> => {
     if (!p) return Promise.resolve(null);
     return new Promise((resolve) => {
@@ -258,11 +257,17 @@ export async function runQuickLoop(options: LoopOptions): Promise<LoopResult> {
     });
   };
 
-  const [recallRes, docRes, webRes] = await Promise.all([
+  const [recallBudgeted, docRes, webRes] = await Promise.all([
     withBudget(recallPromise, 700),
     docSearchPromise,
     webSearchPromise
   ]);
+
+  const recallRes =
+    recallBudgeted ??
+    (recallPromise
+      ? { ok: false as const, error: 'recall timed out after 700ms', ms: 700 }
+      : null);
 
   // Step 1: Record recall_memory trace in deterministic sequence
   if (recallRes) {
@@ -357,86 +362,97 @@ export async function runQuickLoop(options: LoopOptions): Promise<LoopResult> {
         allSearchesCached = false;
       }
 
-      const traceEv: TraceEvent = {
-        step: step++,
-        tool: 'web_search',
-        input: { query: options.query },
-        ok: true,
-        ms: activeWebRes.ms,
-        reason: activeWebRes.searchRes.cached
-          ? `cache hit (${activeWebRes.searchRes.tier})`
-          : `retrieved ${activeWebRes.searchRes.results.length} results from ${activeWebRes.searchRes.provider}`
-      };
-      traces.push(traceEv);
-      toolCallsLog.push({ name: 'web_search', ok: true, ms: activeWebRes.ms });
-      options.onTrace?.(traceEv);
+      const searchReason = activeWebRes.searchRes.cached
+        ? `cache hit (${activeWebRes.searchRes.tier})`
+        : `retrieved ${activeWebRes.searchRes.results.length} results from ${activeWebRes.searchRes.provider}`;
 
-      // Filter out PDF and video URLs that lack readable HTML article content
-      const candidateUrls = Array.from(new Set(activeWebRes.searchRes.results.map((r) => r.url)))
-        .filter((u) => u && !u.endsWith('.pdf') && !u.includes('youtube.com') && !u.includes('youtu.be') && !u.includes('vimeo.com'));
+      const pendingFetches: Array<{
+        event: Omit<TraceEvent, 'step'>;
+        log: { name: ToolName; ok: boolean; error?: string; ms?: number };
+      }> = [];
+
+      const candidateUrls = Array.from(new Set(activeWebRes.searchRes.results.map((r) => r.url))).filter(
+        (u) => u && !u.endsWith('.pdf') && !u.includes('youtube.com') && !u.includes('youtu.be') && !u.includes('vimeo.com')
+      );
 
       for (const url of candidateUrls.slice(0, 1)) {
-        if (isCapReached()) {
-          break;
-        }
-
+        if (isCapReached()) break;
         const fetchStart = Date.now();
         try {
-          const pageRes = await executeFetchPage({ url, maxChars: 10000, timeoutMs: 120 });
+          const pageRes = await executeFetchPage({ url, maxChars: 10000, timeoutMs: 1500 });
           const fetchMs = Date.now() - fetchStart;
           if (pageRes.content && pageRes.content.length >= 250) {
-            const fetchTrace: TraceEvent = {
-              step: step++,
-              tool: 'fetch_page',
-              input: { url },
-              ok: true,
-              ms: fetchMs,
-              reason: `fetched ${pageRes.content.length} chars: ${pageRes.title}`
-            };
-            traces.push(fetchTrace);
-            toolCallsLog.push({ name: 'fetch_page', ok: true, ms: fetchMs });
-            options.onTrace?.(fetchTrace);
+            pendingFetches.push({
+              event: {
+                tool: 'fetch_page',
+                input: { url },
+                ok: true,
+                ms: fetchMs,
+                reason: `fetched ${pageRes.content.length} chars: ${pageRes.title}`
+              },
+              log: { name: 'fetch_page', ok: true, ms: fetchMs }
+            });
             fetchedPages.push(pageRes);
-            break; // Stop immediately once we have a high-quality article page
+            break;
           }
         } catch (fetchErr) {
           const fetchMs = Date.now() - fetchStart;
           const errMsg = (fetchErr as Error).message || 'Failed to fetch page';
-          const fetchTrace: TraceEvent = {
-            step: step++,
-            tool: 'fetch_page',
-            input: { url },
-            ok: false,
-            ms: fetchMs,
-            error: errMsg
-          };
-          traces.push(fetchTrace);
-          toolCallsLog.push({ name: 'fetch_page', ok: false, error: errMsg, ms: fetchMs });
-          options.onTrace?.(fetchTrace);
+          pendingFetches.push({
+            event: {
+              tool: 'fetch_page',
+              input: { url },
+              ok: false,
+              ms: fetchMs,
+              error: errMsg
+            },
+            log: { name: 'fetch_page', ok: false, error: errMsg, ms: fetchMs }
+          });
         }
       }
 
-      // If page fetch timed out or failed, fall back to search snippet as allowed by contract
+      let usedSnippet = false;
       if (fetchedPages.length === 0 && activeWebRes.searchRes.results.length > 0) {
-        const topResult = activeWebRes.searchRes.results.find((r) => r.snippet && r.snippet.length >= 80) || activeWebRes.searchRes.results[0];
+        const topResult =
+          activeWebRes.searchRes.results.find((r) => r.snippet && r.snippet.length >= 80) ||
+          activeWebRes.searchRes.results[0];
         if (topResult && topResult.snippet) {
+          usedSnippet = true;
           fetchedPages.push({
             url: topResult.url,
             title: topResult.title || topResult.url,
             content: topResult.snippet
           });
-          const snippetTrace: TraceEvent = {
-            step: step++,
-            tool: 'fetch_page',
-            input: { url: topResult.url },
-            ok: true,
-            ms: 1,
-            reason: 'fell back to search snippet'
-          };
-          traces.push(snippetTrace);
-          toolCallsLog.push({ name: 'fetch_page', ok: true, ms: 1 });
-          options.onTrace?.(snippetTrace);
+          pendingFetches.push({
+            event: {
+              tool: 'fetch_page',
+              input: { url: topResult.url },
+              ok: true,
+              ms: 1,
+              reason: 'fell back to search snippet'
+            },
+            log: { name: 'fetch_page', ok: true, ms: 1 }
+          });
         }
+      }
+
+      const searchTrace: TraceEvent = {
+        step: step++,
+        tool: 'web_search',
+        input: { query: options.query },
+        ok: true,
+        ms: activeWebRes.ms,
+        reason: usedSnippet ? `${searchReason}; fell back to search snippets` : searchReason
+      };
+      traces.push(searchTrace);
+      toolCallsLog.push({ name: 'web_search', ok: true, ms: activeWebRes.ms });
+      options.onTrace?.(searchTrace);
+
+      for (const pending of pendingFetches) {
+        const fetchTrace: TraceEvent = { step: step++, ...pending.event };
+        traces.push(fetchTrace);
+        toolCallsLog.push(pending.log);
+        options.onTrace?.(fetchTrace);
       }
     } else {
       const searchTrace: TraceEvent = {

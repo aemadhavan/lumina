@@ -7,6 +7,9 @@ export async function getEmbedding(text: string): Promise<number[]> {
   return emb;
 }
 
+const embeddingCache = new Map<string, { value: number[]; expiresAt: number }>();
+const EMBED_CACHE_TTL_MS = 30 * 60 * 1000;
+
 export async function getEmbeddings(texts: string[]): Promise<number[][]> {
   if (!texts.length) return [];
   if (!secrets.openai) {
@@ -14,6 +17,14 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
   }
 
   const cleanTexts = texts.map((t) => t.replace(/\r\n/g, '\n').trim() || ' ');
+  const now = Date.now();
+  const cached = cleanTexts.map((t) => {
+    const hit = embeddingCache.get(t);
+    return hit && hit.expiresAt > now ? hit.value : null;
+  });
+  if (cached.every((v) => v)) return cached as number[][];
+
+  const missing = cleanTexts.filter((_, i) => !cached[i]);
 
   const res = await fetch('https://api.openai.com/v1/embeddings', {
     method: 'POST',
@@ -23,7 +34,7 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
     },
     body: JSON.stringify({
       model: env.embeddingModel,
-      input: cleanTexts
+      input: missing
     }),
     signal: AbortSignal.timeout(30000)
   });
@@ -36,13 +47,21 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
   const data = (await res.json()) as { data: Array<{ embedding: number[]; index: number }> };
   // Ensure order is preserved by index
   const sorted = data.data.sort((a, b) => a.index - b.index);
-  const embeddings = sorted.map((d) => d.embedding);
+  const fresh = sorted.map((d) => d.embedding);
 
-  for (const emb of embeddings) {
+  for (const emb of fresh) {
     if (emb.length !== EMBEDDING_DIMS) {
       throw new Error(`Invalid embedding dimensions: expected ${EMBEDDING_DIMS}, got ${emb.length}`);
     }
   }
+
+  let fi = 0;
+  const embeddings = cleanTexts.map((text, i) => {
+    if (cached[i]) return cached[i]!;
+    const emb = fresh[fi++]!;
+    embeddingCache.set(text, { value: emb, expiresAt: Date.now() + EMBED_CACHE_TTL_MS });
+    return emb;
+  });
 
   return embeddings;
 }

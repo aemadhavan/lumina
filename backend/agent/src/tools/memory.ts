@@ -51,18 +51,20 @@ export async function saveMemory(input: SaveMemoryInput): Promise<MemoryDoc> {
 }
 
 /**
- * Recall semantic memories relevant to a query using Atlas Vector Search.
+ * Recall is semantic: Atlas Vector Search on memories.embedding, filtered by userId.
+ * A recent-document scan is only used when the vector index returns nothing or throws
+ * (Atlas is eventually consistent after a fresh save).
  */
 export async function recallMemory(input: RecallMemoryInput): Promise<RecalledMemory[]> {
   const cleanQuery = input.query.trim();
   if (!cleanQuery) return [];
 
   const col = await memoriesCollection();
+  const limit = input.limit ?? 3;
   const count = await col.countDocuments({ userId: input.userId }, { limit: 1 });
   if (count === 0) return [];
 
   const queryEmbedding = await getEmbedding(cleanQuery);
-  const limit = input.limit ?? 3;
 
   try {
     const pipeline = [
