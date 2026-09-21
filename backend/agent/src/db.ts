@@ -67,17 +67,17 @@ export async function putGridFsUpload(
       data: buffer.subarray(offset, Math.min(offset + GRIDFS_CHUNK, buffer.length))
     });
   }
-  await Promise.all([
-    files.insertOne({
-      _id: id,
-      length: buffer.length,
-      chunkSize: GRIDFS_CHUNK,
-      uploadDate: new Date(),
-      filename,
-      metadata
-    }),
-    chunkDocs.length > 0 ? chunks.insertMany(chunkDocs) : Promise.resolve()
-  ]);
+  if (chunkDocs.length > 0) {
+    await chunks.insertMany(chunkDocs);
+  }
+  await files.insertOne({
+    _id: id,
+    length: buffer.length,
+    chunkSize: GRIDFS_CHUNK,
+    uploadDate: new Date(),
+    filename,
+    metadata
+  });
 }
 
 export async function pingDb(): Promise<'ok' | 'down'> {

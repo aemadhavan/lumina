@@ -3,6 +3,7 @@ import cors from 'cors';
 import { pinoHttp } from 'pino-http';
 import pino from 'pino';
 import http from 'node:http';
+import https from 'node:https';
 import { URL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -296,11 +297,12 @@ app.post('/spaces/:spaceId/documents', (req, res) => {
   const contentLength = req.header('content-length');
   if (contentLength) headers['content-length'] = contentLength;
 
-  const proxyReq = http.request(
+  const transport = targetUrl.protocol === 'https:' ? https : http;
+  const proxyReq = transport.request(
     {
       hostname: targetUrl.hostname,
-      port: targetUrl.port,
-      path: targetUrl.pathname,
+      port: targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80),
+      path: targetUrl.pathname + targetUrl.search,
       method: 'POST',
       headers
     },

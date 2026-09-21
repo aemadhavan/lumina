@@ -270,9 +270,15 @@ export async function processJob(job: JobDoc): Promise<void> {
 
     // 2. Read from GridFS (with retry for write replication lag)
     let buffer: Buffer | null = null;
+    const expectedBytes = typeof job.payload?.bytes === 'number' ? job.payload.bytes : 0;
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
         buffer = await readGridFsFile(fileId);
+        if (!buffer || buffer.length === 0 || (expectedBytes > 0 && buffer.length < expectedBytes)) {
+          throw new Error(
+            `GridFS file ${fileId} returned empty or partial buffer (${buffer?.length ?? 0}/${expectedBytes} bytes)`
+          );
+        }
         break;
       } catch (gridFsErr) {
         if (attempt < 4) {
@@ -282,7 +288,7 @@ export async function processJob(job: JobDoc): Promise<void> {
         }
       }
     }
-    if (!buffer) {
+    if (!buffer || buffer.length === 0) {
       throw new Error(`Failed to load file ${fileId} from GridFS after 5 attempts`);
     }
 
@@ -377,6 +383,9 @@ export async function processJob(job: JobDoc): Promise<void> {
           status: 'indexed',
           chunks: chunkDocs.length,
           pct: 100
+        },
+        $unset: {
+          error: ''
         }
       }
     );

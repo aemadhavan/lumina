@@ -148,8 +148,8 @@ spacesRouter.post('/spaces/:spaceId/documents', handleUpload, async (req: Reques
 
   try {
     const [documents, jobs] = await Promise.all([documentsCollection(), jobsCollection()]);
+    await putGridFsUpload(fileId, filename, buffer, { docId, spaceId, userId, mimeType });
     await Promise.all([
-      putGridFsUpload(fileId, filename, buffer, { docId, spaceId, userId, mimeType }),
       documents.insertOne({
         _id: docId as any,
         spaceId: spaceId as any,
