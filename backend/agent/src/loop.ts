@@ -510,7 +510,9 @@ export async function runQuickLoop(options: LoopOptions): Promise<LoopResult> {
       traces.push(searchTrace);
       toolCallsLog.push({ name: 'web_search', ok: false, error: activeWebRes.error, ms: activeWebRes.ms });
       options.onTrace?.(searchTrace);
-      throw activeWebRes.rawErr;
+      const rawErr = (activeWebRes.rawErr as any) ?? new Error(activeWebRes.error);
+      rawErr.toolCallsLog = toolCallsLog;
+      throw rawErr;
     }
   } else if (isCapReached()) {
     terminated = 'cap';

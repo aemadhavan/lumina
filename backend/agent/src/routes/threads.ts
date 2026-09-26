@@ -319,6 +319,7 @@ threadsRouter.post('/threads/:threadId/ask', async (req: Request, res: Response)
     send('error', { error: errMsg, status: 502 });
     res.end();
 
+    const toolCalls = (err as any)?.toolCallsLog ?? [];
     await writeRunLog({
       requestId,
       userId,
@@ -329,7 +330,7 @@ threadsRouter.post('/threads/:threadId/ask', async (req: Request, res: Response)
       costUsd: 0,
       terminated: 'error',
       depth: requestedDepth,
-      toolCalls: []
+      toolCalls
     });
   }
 });
