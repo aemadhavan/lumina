@@ -149,12 +149,95 @@
       transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.6);
       overflow-y: auto;
+      cursor: pointer;
+    }
+
+    .slide a, .slide button, .slide .btn, .slide code, .slide .card {
+      cursor: auto;
     }
 
     .slide.active {
       opacity: 1;
       pointer-events: auto;
       transform: translateY(0) scale(1);
+    }
+
+    /* Floating Side Navigation Arrows */
+    .nav-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(18, 24, 38, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text);
+      font-size: 26px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 60;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      user-select: none;
+    }
+
+    .nav-arrow:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--cyan);
+      color: var(--cyan);
+      box-shadow: 0 0 20px var(--cyan-glow);
+      transform: translateY(-50%) scale(1.12);
+    }
+
+    .nav-arrow.prev {
+      left: 10px;
+    }
+
+    .nav-arrow.next {
+      right: 10px;
+    }
+
+    /* Bottom Dots Indicator */
+    .dots-nav {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 100;
+      background: rgba(18, 24, 38, 0.85);
+      backdrop-filter: blur(10px);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      border: 1px solid var(--card-border);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.25);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .dot:hover {
+      background: rgba(255, 255, 255, 0.6);
+      transform: scale(1.25);
+    }
+
+    .dot.active {
+      width: 22px;
+      border-radius: 4px;
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan-glow);
     }
 
     /* Slide Header */
@@ -824,16 +907,24 @@
       </div>
     </section>
 
+    <!-- Floating Side Navigation Arrows -->
+    <button class="nav-arrow prev" onclick="prevSlide(); event.stopPropagation();" title="Previous Slide (or click left side of slide)">‹</button>
+    <button class="nav-arrow next" onclick="nextSlide(); event.stopPropagation();" title="Next Slide (or click right side of slide)">›</button>
+
   </main>
+
+  <!-- Clickable Bottom Dots -->
+  <div class="dots-nav" id="dotsNav"></div>
 
   <!-- Progress Bar -->
   <div class="progress-bar-container">
     <div class="progress-bar" id="progressBar"></div>
   </div>
 
-  <!-- Keyboard navigation hint -->
+  <!-- Keyboard & Click hint -->
   <div class="hint">
     <span>Navigate:</span>
+    <span class="kbd">Click</span>
     <span class="kbd">←</span>
     <span class="kbd">→</span>
     <span class="kbd">Space</span>
@@ -844,6 +935,19 @@
     let currentSlide = 1;
     const totalSlides = 10;
 
+    // Generate clickable bottom dots
+    const dotsNav = document.getElementById('dotsNav');
+    for (let i = 1; i <= totalSlides; i++) {
+      const dot = document.createElement('div');
+      dot.className = `dot ${i === 1 ? 'active' : ''}`;
+      dot.title = `Jump to Slide ${i}`;
+      dot.onclick = (e) => {
+        e.stopPropagation();
+        showSlide(i);
+      };
+      dotsNav.appendChild(dot);
+    }
+
     function showSlide(index) {
       if (index < 1) index = 1;
       if (index > totalSlides) index = totalSlides;
@@ -853,6 +957,15 @@
           slide.classList.add('active');
         } else {
           slide.classList.remove('active');
+        }
+      });
+
+      // Update dots
+      document.querySelectorAll('.dot').forEach((dot, i) => {
+        if (i + 1 === index) {
+          dot.classList.add('active');
+        } else {
+          dot.classList.remove('active');
         }
       });
 
@@ -885,6 +998,40 @@
       }
     }
 
+    // Click anywhere on slide stage: left 30% goes prev, right 70% goes next
+    document.querySelector('.stage').addEventListener('click', (e) => {
+      // Don't intercept clicks on links, buttons, code blocks, or interactive tags
+      if (e.target.closest('a, button, .nav-arrow, .dots-nav, .kbd, code')) {
+        return;
+      }
+      
+      const rect = document.querySelector('.stage').getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      
+      if (clickX < rect.width * 0.3) {
+        prevSlide();
+      } else {
+        nextSlide();
+      }
+    });
+
+    // Touch swipe support
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    document.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      if (touchEndX < touchStartX - 50) {
+        nextSlide();
+      } else if (touchEndX > touchStartX + 50) {
+        prevSlide();
+      }
+    }, { passive: true });
+
     window.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight' || e.key === 'Space') {
         nextSlide();
@@ -899,7 +1046,7 @@
       }
     });
 
-    // Initialize progress bar
+    // Initialize
     showSlide(1);
   </script>
 </body>
