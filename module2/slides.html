@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Production Agentic RAG: From Plan to Implementation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --primary: #38bdf8;
+      --accent: #818cf8;
+      --success: #4ade80;
+      --danger: #f87171;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top navigation bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 24px;
+      background-color: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--card-border);
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(129, 140, 248, 0.2));
+      color: var(--primary);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .deck-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      background-color: var(--card-bg);
+      color: var(--text-main);
+      border: 1px solid var(--card-border);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background-color: #334155;
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--primary);
+      min-width: 60px;
+      text-align: center;
+    }
+
+    /* Main presentation view */
+    .slide-viewport {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .slide {
+      display: none;
+      width: 100%;
+      max-width: 1200px;
+      height: 90%;
+      background-color: var(--bg-color);
+      flex-direction: column;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    .slide.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .slide-header {
+      margin-bottom: 24px;
+    }
+
+    .slide-category {
+      color: var(--primary);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .slide-title {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+    }
+
+    .grid {
+      display: grid;
+      gap: 20px;
+      flex: 1;
+    }
+
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card.primary-border { border-color: rgba(56, 189, 248, 0.6); }
+    .card.success-border { border-color: rgba(74, 222, 128, 0.6); }
+    .card.accent-border { border-color: rgba(129, 140, 248, 0.6); }
+
+    .card-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card ul {
+      list-style-type: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card li {
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: var(--text-main);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .card li::before {
+      content: "•";
+      color: var(--primary);
+      font-size: 1.3rem;
+      line-height: 1rem;
+    }
+
+    .code-box {
+      font-family: 'JetBrains Mono', monospace;
+      background-color: #0b1120;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: #38bdf8;
+      margin-top: 10px;
+      overflow-x: auto;
+    }
+
+    /* Title Slide Specifics */
+    .hero-slide {
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px;
+    }
+
+    .hero-title {
+      font-size: 3.5rem;
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 20px;
+      background: linear-gradient(135deg, #ffffff 40%, var(--primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 800px;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+
+    .pill-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Footer hints */
+    .footer-hint {
+      position: absolute;
+      bottom: 12px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="brand">
+      <span class="badge">ASSIGNMENT 02</span>
+      <span class="deck-title">Production Agentic RAG: Architecture & Implementation Walkthrough</span>
+    </div>
+    <div class="controls">
+      <button class="btn" onclick="prevSlide()">◀ Previous</button>
+      <span class="counter" id="slideCounter">1 / 10</span>
+      <button class="btn" onclick="nextSlide()">Next ▶</button>
+    </div>
+  </div>
+
+  <!-- Slide Viewport -->
+  <div class="slide-viewport">
+
+    <!-- Slide 1: Hero -->
+    <div class="slide hero-slide active">
+      <div class="badge" style="margin-bottom: 16px;">MODULE 3: PRODUCTION AGENTIC RAG AI SYSTEMS</div>
+      <h1 class="hero-title">From Plan to Implementation:<br>Agentic Router & Sub-Query Division</h1>
+      <p class="hero-subtitle">
+        An end-to-end engineering walkthrough covering Dynamic Routing, Agile Story Execution on GitHub Projects, Hybrid Retrieval (Qdrant & SerpApi), Role-Based Access Control, and Zero-Leak Semantic Caching.
+      </p>
+      <div class="pill-group">
+        <span class="pill">Agentic Architecture</span>
+        <span class="pill">GitHub Project #5</span>
+        <span class="pill">Qdrant Vector DB</span>
+        <span class="pill">SerpApi Tool</span>
+        <span class="pill">RBAC Security</span>
+        <span class="pill">Sub-Query Division</span>
+        <span class="pill">Semantic Caching</span>
+      </div>
+    </div>
+
+    <!-- Slide 2: Executive Summary -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-category">System Overview</div>
+        <h2 class="slide-title">Executive Summary: Moving Beyond Static RAG</h2>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-title">1. The Static RAG Problem</div>
+          <ul>
+            <li>Single static retrieval pipeline processes every query identically.</li>
+            <li>Cannot decide where data lives (APIs vs company filings vs live web).</li>
+            <li>Fails on compound queries requiring multi-domain sources.</li>
+            <li>Lacks identity awareness and security boundary enforcement.</li>
+          </ul>
+        </div>
+        <div class="card primary-border">
+          <div class="card-title">2. The Agentic Solution</div>
+          <ul>
+            <li>Agency: Reasoning precedes retrieval and generation.</li>
+            <li>LLM-powered Router dynamically dispatches to specialized stores.</li>
+            <li>Role-Based Access Control (RBAC) gates access prior to search.</li>
+            <li>Decomposes complex compound questions into focused sub-queries.</li>
+          </ul>
+        </div>
+        <div class="card success-border">
+          <div class="card-title">3. Assignment Deliverables</div>
+          <ul>
+            <li>Part 1 (Required): sub_queries decomposition, multi-route execution, and citation preservation.</li>
+            <li>Bonus: RoleAwareSemanticCache with zero cross-role data leaks.</li>
+            <li>Execution: 100% test-verified notebook executed top-to-bottom.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 3: Architecture -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-category">System Design</div>
+        <h2 class="slide-title">System Architecture: End-to-End Decision Flow</h2>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-title">1. Router Agent (LLM Brain)</div>
+          <ul>
+            <li>Uses gpt-5.6-luna / GPT-4o with structured JSON schema.</li>
+            <li>Evaluates query intent and emits action: <code>OPENAI_QUERY</code>, <code>10K_DOCUMENT_QUERY</code>, or <code>INTERNET_QUERY</code>.</li>
+            <li>Includes defensive regex parser to handle malformed outputs.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">2. Security Gatekeeper (RBAC)</div>
+          <ul>
+            <li>Evaluates user role against strict allow-lists before any tool call.</li>
+            <li>Alice (Engineer): allowed Docs + Internet; blocked from 10-K.</li>
+            <li>Bob (Finance Analyst): allowed Docs + 10-K; blocked from Internet.</li>
+            <li>Unknown users rejected immediately.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">3. Hybrid Retrieval Engine</div>
+          <ul>
+            <li>Qdrant Vector DB: nomic-embed-text-v1.5 embeddings for opnai_data and 10k_data.</li>
+            <li>SerpApi Tool: Google Search fetching direct answers and top 5 organic result snippets.</li>
+            <li>Async connection handling with nest_asyncio.</li>
+          </ul>
+        </div>
+        <div class="card success-border">
+          <div class="card-title">4. Grounded Synthesis</div>
+          <ul>
+            <li>Grounded response generator citing source chunks as [1], [2].</li>
+            <li>Multi-query synthesizer merging disparate sub-answers into one cohesive response.</li>
+            <li>Guarantees 100% preservation of all citations and links.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 4: Agile Plan -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-category">Project Execution</div>
+        <h2 class="slide-title">Agile Plan: 10 User Stories on GitHub Project #5</h2>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-title">Phase 1 & 2: Core Infrastructure</div>
+          <ul>
+            <li><b>US-01 (#2)</b>: Environment, credentials, Qdrant stores & Nomic embeddings.</li>
+            <li><b>US-02 (#3)</b>: Live Internet tool with SerpApi structured extraction.</li>
+            <li><b>US-03 (#4)</b>: LLM-powered query router with JSON error recovery.</li>
+            <li><b>US-04 (#5)</b>: Qdrant vector retrieval and [1], [2] citation generator.</li>
+            <li><b>US-05 (#6)</b>: Baseline agentic_rag orchestrator loop.</li>
+          </ul>
+        </div>
+        <div class="card primary-border">
+          <div class="card-title">Phase 3 & 4: Security & Assignment Core</div>
+          <ul>
+            <li><b>US-06 (#7)</b>: Role-Based Access Control gatekeeper.</li>
+            <li><b>US-07 (#8)</b>: Defensive sub-query decomposition engine.</li>
+            <li><b>US-08 (#9)</b>: Multi-route execution & citation synthesis (Part 1 Core).</li>
+            <li><b>US-09 (#10)</b>: End-to-end notebook execution & verification.</li>
+            <li><b>US-10 (#11)</b>: Role-Aware Semantic Caching & anti-leak self-check.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 5: Sub-Query Decomposition -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-category">Part 1 Implementation</div>
+        <h2 class="slide-title">Decomposition: Breaking Compound Queries Safely</h2>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-title">The Decomposition Strategy</div>
+          <ul>
+            <li>Prompt design instructs LLM to output strict JSON: <code>{"subQuestions": [...]}</code>.</li>
+            <li>Evaluates whether query has multiple distinct intents or is single-topic.</li>
+            <li><b>Defensive Parsing Architecture:</b>
+              <div class="code-box">
+1. Strip markdown fences (```json ... ```)<br>
+2. Regex scan for root JSON object {.*}<br>
+3. Validate non-empty question list<br>
+4. Fallback: on any error, return [original_query]
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div class="card success-border">
+          <div class="card-title">Verification Against Test Matrix</div>
+          <ul>
+            <li><b>Single Query Test:</b><br>
+              <code>"what was uber revenue in 2021?"</code> → 1 sub-query (Fast-pathed).</li>
+            <li><b>Same-Domain Compound Test:</b><br>
+              <code>"what was lyft revenue in 2021 and what was uber revenue in 2021"</code><br>
+              → 2 sub-queries, both routed to <code>10K_DOCUMENT_QUERY</code>.</li>
+            <li><b>Cross-Domain Compound Test:</b><br>
+              <code>"what was uber's 2021 revenue and what are the newest LLMs?"</code><br>
+              → 2 sub-queries: <code>10K_DOCUMENT_QUERY</code> + <code>INTERNET_QUERY</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 6: Multi-Route & Synthesis -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-category">Part 1 Implementation</div>
+        <h2 class="slide-title">Multi-Route Execution & Citation-Preserving Synthesis</h2>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-title">Execution Engine (agentic_rag_multi)</div>
+          <ul>
+            <li><b>Step 1</b>: Decompose compound query via <code>split_query</code>.</li>
+            <li><b>Step 2</b>: Fast-path single questions directly to <code>agentic_rag</code> without extra LLM synthesis overhead.</li>
+            <li><b>Step 3</b>: Route and execute each sub-query independently:
+              <ul>
+                <li>Sub-queries legitimately land on different sources.</li>
+                <li>Handlers execute with async/sync isolation.</li>
+              </ul>
+            </li>
+            <li><b>Step 4</b>: Collect per-sub-query results into structured context blocks.</li>
+          </ul>
+        </div>
+        <div class="card primary-border">
+          <div class="card-title">Citation-Preserving Synthesis</div>
+          <ul>
+            <li><b>Non-Negotiable Requirement:</b> All citations (<code>[1]</code>, <code>[2]</code>, URLs) must be preserved in the composite output.</li>
+            <li><b>Dedicated Synthesizer Prompt:</b>
+              <ul>
+                <li>Blends disparate sub-answers into one cohesive structure.</li>
+                <li>Uses markdown headings and bulleted financial metrics.</li>
+                <li>Retains organic web links alongside SEC filing citations.</li>
+              </ul>
+            </li>
+            <li>Eliminates hallucination by constraining to retrieved context.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 7: RBAC Security -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-category">Security Architecture</div>
+        <h2 class="slide-title">Role-Based Access Control (RBAC) Gatekeeper</h2>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-title">RBAC Architecture & Allow-Lists</div>
+          <ul>
+            <li><b>Role Definitions:</b><br>
+              • <code>alice</code>: engineer<br>
+              • <code>bob</code>: finance_analyst<br>
+              • <code>carol</code>: unknown user (immediate rejection)</li>
+            <li><b>Permission Allow-Lists:</b><br>
+              • <code>engineer</code>: {OPENAI_QUERY, INTERNET_QUERY}<br>
+              • <code>finance_analyst</code>: {OPENAI_QUERY, 10K_DOCUMENT_QUERY}</li>
+            <li><b>Gatekeeper Principle:</b> Gate before retrieval. No embeddings or vector search execute if unauthorized.</li>
+          </ul>
+        </div>
+        <div class="card success-border">
+          <div class="card-title">Enforcement Verification</div>
+          <ul>
+            <li><b>Alice asks 10-K financial revenue:</b><br>
+              → Router identifies 10K_DOCUMENT_QUERY.<br>
+              → RBAC blocks request: <code>ACCESS DENIED</code>.</li>
+            <li><b>Bob asks live internet search:</b><br>
+              → Router identifies INTERNET_QUERY.<br>
+              → RBAC blocks request: <code>ACCESS DENIED</code>.</li>
+            <li><b>Carol asks OpenAI docs:</b><br>
+              → Unknown identity blocked before routing runs.</li>
+            <li>Authorized requests proceed to grounded generation.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 8: Semantic Cache (Bonus) -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-category">Bonus Implementation</div>
+        <h2 class="slide-title">Role-Aware Semantic Cache with Zero Data Leaks</h2>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-title">The Data Leak Vulnerability</div>
+          <ul>
+            <li><b>The Problem with Naive Semantic Caching:</b><br>
+              • Cache keyed solely on query text serves cached data across users.<br>
+              • Bob (Finance) queries Uber revenue → cached.<br>
+              • Alice (Engineer) asks same question → naive cache serves Bob's finance answer without checking RBAC!</li>
+            <li><b>Architectural Solution:</b> Partitioned Cache.<br>
+              • Separate cache namespaces per role: <code>self.partitions[role]</code>.<br>
+              • Cosine distance threshold = 0.2 on 768-dim embeddings.</li>
+          </ul>
+        </div>
+        <div class="card success-border">
+          <div class="card-title">Strict Order of Operations & Tests</div>
+          <ul>
+            <li><b>Mandatory Pipeline Order:</b><br>
+              <code>Identity → Route → RBAC Gate → Cache Check → Pipeline</code></li>
+            <li><b>Crucial Rule:</b> Denials must NEVER be cached or checked.</li>
+            <li><b>Passed all 6 assertions in run_self_check():</b><br>
+              1. Bob first ask: <code>MISS</code> → cached.<br>
+              2. Bob repeat ask: <code>HIT</code>.<br>
+              3. Alice asks finance: <code>DENIED</code> (Zero leak!).<br>
+              4. Alice asks paraphrase: <code>DENIED</code> (No vector match).<br>
+              5. Carol: <code>DENIED</code>. Alice shared doc: <code>MISS → HIT</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 9: Benchmark Results -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-category">Validation</div>
+        <h2 class="slide-title">Validation: Complete Benchmark & Test Results</h2>
+      </div>
+      <div class="grid grid-3">
+        <div class="card success-border">
+          <div class="card-title">Test 1: Single Query</div>
+          <ul>
+            <li><b>Input:</b> <i>"what was uber revenue in 2021?"</i></li>
+            <li><b>Decomposition:</b> 1 sub-query.</li>
+            <li><b>Route:</b> 10K_DOCUMENT_QUERY.</li>
+            <li><b>Result:</b> $17.455 billion [1].</li>
+            <li><b>Status:</b> PASSED (Fast-pathed).</li>
+          </ul>
+        </div>
+        <div class="card success-border">
+          <div class="card-title">Test 2: Compound 10-K</div>
+          <ul>
+            <li><b>Input:</b> Lyft & Uber 2021 revenue.</li>
+            <li><b>Decomposition:</b> 2 sub-queries.</li>
+            <li><b>Routes:</b> Both 10K_DOCUMENT_QUERY.</li>
+            <li><b>Result:</b> Lyft ($4.095B [1]) & Uber ($17.455B [1]).</li>
+            <li><b>Status:</b> PASSED.</li>
+          </ul>
+        </div>
+        <div class="card success-border">
+          <div class="card-title">Test 3: Cross-Domain</div>
+          <ul>
+            <li><b>Input:</b> Uber revenue + Newest LLMs.</li>
+            <li><b>Decomposition:</b> 10K + SerpApi.</li>
+            <li><b>Synthesis:</b> Synthesized sections.</li>
+            <li><b>Citations:</b> Preserved [1] and all 5 web source URLs.</li>
+            <li><b>Status:</b> PASSED.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 10: Key Takeaways -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-category">Conclusion</div>
+        <h2 class="slide-title">Key Architectural Takeaways for Production AI</h2>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-title">1. Agency & Decoupling</div>
+          <ul>
+            <li>Decouple decision-making from retrieval tools.</li>
+            <li>Routers allow specialized stores to scale independently.</li>
+            <li>Compound queries require decomposition rather than monolithic search.</li>
+          </ul>
+        </div>
+        <div class="card primary-border">
+          <div class="card-title">2. Security by Design</div>
+          <ul>
+            <li>Access checks must sit before retrieval and before caching.</li>
+            <li>Never assume an LLM prompt alone guarantees authorization.</li>
+            <li>Cache partitioning prevents catastrophic cross-role data leakage.</li>
+          </ul>
+        </div>
+        <div class="card success-border">
+          <div class="card-title">3. Robust Grounding</div>
+          <ul>
+            <li>Synthesize from indexed chunks and organic pages, not unverified snippets.</li>
+            <li>Preserve end-to-end provenance with explicit citations.</li>
+            <li>Traceability is what makes enterprise RAG trustworthy.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const counter = document.getElementById('slideCounter');
+
+    function updateSlide() {
+      slides.forEach((s, idx) => {
+        s.classList.toggle('active', idx === currentSlide);
+      });
+      counter.textContent = `${currentSlide + 1} / ${slides.length}`;
+    }
+
+    function nextSlide() {
+      if (currentSlide < slides.length - 1) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft') {
+        prevSlide();
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+Agentic_RAG/qdrant_data/
+temp_body.txt
