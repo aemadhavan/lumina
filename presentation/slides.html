@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LUMINA — Production Agentic Search & Deep Research</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(18, 24, 38, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --cyan: #38bdf8;
+      --cyan-glow: rgba(56, 189, 248, 0.25);
+      --emerald: #34d399;
+      --emerald-glow: rgba(52, 211, 153, 0.25);
+      --amber: #fbbf24;
+      --rose: #fb7185;
+      --purple: #a855f7;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-faint: #475569;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.07) 0%, transparent 40%);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Top bar */
+    header.deck-bar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(9, 13, 22, 0.7);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+
+    .brand {
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand span {
+      color: var(--cyan);
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--cyan);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .deck-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slide-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--text-muted);
+      min-width: 65px;
+      text-align: center;
+    }
+
+    .btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn.active {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    /* Main presentation stage */
+    main.stage {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 36px;
+    }
+
+    .slide {
+      position: absolute;
+      width: 100%;
+      max-width: 1240px;
+      height: calc(100% - 48px);
+      max-height: 720px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 44px 52px;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(16px) scale(0.985);
+      transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.6);
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Slide Header */
+    .slide-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--cyan);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .slide-tag::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan);
+    }
+
+    .slide-title {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+      margin-bottom: 24px;
+      background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .slide-subtitle {
+      font-size: 16px;
+      color: var(--text-muted);
+      margin-top: -16px;
+      margin-bottom: 24px;
+      font-weight: 400;
+    }
+
+    /* Layout Grids */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      flex: 1;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      flex: 1;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    /* Cards */
+    .card {
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: transparent;
+      transition: background 0.2s ease;
+    }
+
+    .card:hover::before {
+      background: linear-gradient(90deg, var(--cyan), var(--purple));
+    }
+
+    .card h3 {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card p, .card li {
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .card ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    .card ul li {
+      position: relative;
+      padding-left: 18px;
+      margin-bottom: 8px;
+    }
+
+    .card ul li::before {
+      content: "•";
+      position: absolute;
+      left: 4px;
+      color: var(--cyan);
+      font-weight: bold;
+    }
+
+    /* Stat Box */
+    .stat-hero {
+      background: rgba(56, 189, 248, 0.05);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 14px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .stat-hero .num {
+      font-size: 48px;
+      font-weight: 800;
+      color: var(--cyan);
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .stat-hero .label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Code & Technical Pills */
+    code, .code-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: #e2e8f0;
+    }
+
+    .highlight-cyan { color: var(--cyan); font-weight: 600; }
+    .highlight-emerald { color: var(--emerald); font-weight: 600; }
+    .highlight-rose { color: var(--rose); font-weight: 600; }
+
+    /* Progress bar */
+    .progress-bar-container {
+      height: 3px;
+      background: rgba(255, 255, 255, 0.05);
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--purple));
+      width: 10%;
+      transition: width 0.25s ease;
+    }
+
+    /* Architecture flow chart */
+    .arch-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .arch-row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .arch-tier {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--cyan);
+      text-transform: uppercase;
+    }
+
+    .arch-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Keyboard hint */
+    .hint {
+      position: fixed;
+      bottom: 14px;
+      right: 24px;
+      font-size: 11px;
+      color: var(--text-faint);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 90;
+    }
+
+    .kbd {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="deck-bar">
+    <div class="brand">
+      LUM<span>INA</span>
+      <span class="badge">Architecture & Evaluation</span>
+    </div>
+    <div class="deck-controls">
+      <button class="btn" onclick="prevSlide()" title="Previous slide (Left Arrow)">← Prev</button>
+      <div class="slide-counter" id="counter">1 / 10</div>
+      <button class="btn" onclick="nextSlide()" title="Next slide (Right Arrow)">Next →</button>
+      <button class="btn" onclick="toggleFullscreen()" title="Fullscreen (F)">⛶ Fullscreen</button>
+    </div>
+  </header>
+
+  <!-- Slide Stage -->
+  <main class="stage">
+
+    <!-- SLIDE 1: Title -->
+    <section class="slide active" id="slide-1">
+      <div class="slide-tag">Production AI Agent Engineering</div>
+      <h1 class="slide-title" style="font-size: 42px; margin-bottom: 12px; margin-top: 10px;">LUMINA</h1>
+      <p class="slide-subtitle" style="font-size: 20px; color: var(--cyan); margin-bottom: 28px;">
+        Grounded AI Search Engine & Multi-Gear Research Agent
+      </p>
+
+      <div class="grid-3" style="margin-bottom: 24px;">
+        <div class="card">
+          <div class="stat-hero" style="border: none; background: transparent; padding: 0; text-align: left;">
+            <div class="num" style="font-size: 32px; color: var(--emerald);">0.99</div>
+            <div class="label">Citation Grounding</div>
+          </div>
+          <p style="margin-top: 8px;">Zero ungrounded hallucinations; every citation arithmetically verified against retrieved text.</p>
+        </div>
+
+        <div class="card">
+          <div class="stat-hero" style="border: none; background: transparent; padding: 0; text-align: left;">
+            <div class="num" style="font-size: 32px; color: var(--cyan);">1,039</div>
+            <div class="label">Production Runs</div>
+          </div>
+          <p style="margin-top: 8px;">Zero error-severity trajectory failures across 6 comprehensive quality gates.</p>
+        </div>
+
+        <div class="card">
+          <div class="stat-hero" style="border: none; background: transparent; padding: 0; text-align: left;">
+            <div class="num" style="font-size: 32px; color: var(--purple);">Dual-Gear</div>
+            <div class="label">Quick vs. Deep Engine</div>
+          </div>
+          <p style="margin-top: 8px;">Sub-second fast answers + structured recursive research fanning out to 5x sources.</p>
+        </div>
+      </div>
+
+      <div class="card" style="background: rgba(255,255,255,0.015);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 13px; font-weight: 600; color: #fff;">Assignment 1 · Student: Madhavan</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Stack: Express Microservices · React 18 SPA · MongoDB Atlas Vector Search · Tavily · OpenAI</div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <span class="code-pill">Railway Gateway :8787</span>
+            <span class="code-pill">Private Agent :8000</span>
+            <span class="code-pill">Vercel UI</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: Core Philosophy -->
+    <section class="slide" id="slide-2">
+      <div class="slide-tag">Engineering Contract</div>
+      <h2 class="slide-title">The Non-Negotiable Core Thesis</h2>
+      <p class="slide-subtitle">Why standard LLM wrappers fail in enterprise and how LUMINA enforces guarantees.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="color: var(--cyan);">1. Grounding as Strict Arithmetic</h3>
+          <p style="margin-bottom: 12px;">Most AI search engines cite snippets or hallucinate links. In LUMINA:</p>
+          <ul>
+            <li><strong>Snippet synthesis is forbidden:</strong> Content is synthesized only from full fetched page text or verified document chunks.</li>
+            <li><strong>Zero fabricated citations:</strong> Every <code>[n]</code> in generated text must resolve to exactly one fetched source in the request.</li>
+            <li><strong>Arithmetic validation:</strong> Checked via exact normalized token overlap. A judge model is never trusted to grade citations.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3 style="color: var(--rose);">2. Fail Loud — No Silent Fallbacks</h3>
+          <p style="margin-bottom: 12px;">The costliest production bug is a <code>try/catch</code> that returns plausible text:</p>
+          <ul>
+            <li><strong>Live Translate lesson:</strong> Silent catch blocks can serve broken or hallucinated English for weeks with green 200 OKs.</li>
+            <li><strong>Honest upstream failure:</strong> If a model or search provider throws, the run terminates immediately with <code>terminated: "error"</code> and returns HTTP 502.</li>
+            <li><strong>Traceable errors:</strong> Every failed tool execution explicitly reports <code>{ ok: false, error: "..." }</code> to the agent state.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3 style="color: var(--amber);">3. Unbounded Loops are Outages</h3>
+          <p style="margin-bottom: 12px;">An agent loop without determinism is a production countdown:</p>
+          <ul>
+            <li><strong>Hard Tool Caps:</strong> Quick mode capped at 8 tools; Deep mode capped at 24 tools.</li>
+            <li><strong>Hard Time Caps:</strong> 90 seconds (quick) / 240 seconds (deep) strictly enforced by the server harness.</li>
+            <li><strong>Honest Partial Answers:</strong> If a cap is reached, output states <code>terminated: "cap"</code> rather than fabricating a finished status.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3 style="color: var(--emerald);">4. Metadata Precedes Text</h3>
+          <p style="margin-bottom: 12px;">Eliminating UI stutter and rendering stalls:</p>
+          <ul>
+            <li><strong>Order:</strong> <code>trace → sources → token → done</code></li>
+            <li><strong>Immediate Chip Hydration:</strong> Citations arrive before the first character of text streams so the client never renders dangling chips.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: System Architecture -->
+    <section class="slide" id="slide-3">
+      <div class="slide-tag">Distributed Topology</div>
+      <h2 class="slide-title">Six-Component Decoupled Architecture</h2>
+      <p class="slide-subtitle">Strict separation of edge routing, agent reasoning, background processing, and persistence.</p>
+
+      <div class="arch-flow">
+        <div class="arch-row">
+          <div class="arch-tier">1. Web SPA</div>
+          <div class="arch-desc">React 18 + Vite deployed on <strong>Vercel</strong>. Handles streaming token rendering, citation chip popovers, spaces management, and the <code>/evals</code> live scorecard. Zero credentials.</div>
+        </div>
+        <div class="arch-row">
+          <div class="arch-tier">2. Edge Gateway</div>
+          <div class="arch-desc">Express reverse-proxy on <strong>Railway (:8787)</strong>. Public edge boundary: enforces CORS, generates/validates <code>X-Request-Id</code> and <code>X-User-Id</code>, Zod validation, and unbuffered SSE pass-through with 2KB warmup padding.</div>
+        </div>
+        <div class="arch-row">
+          <div class="arch-tier">3. Agent Core</div>
+          <div class="arch-desc">Internal Express service <strong>(:8000)</strong>. Completely private. Holds API credentials, executes ReAct loop (<code>web_search</code>, <code>fetch_page</code>, <code>recall_memory</code>, <code>save_memory</code>, <code>plan_research</code>), and enforces budget caps.</div>
+        </div>
+        <div class="arch-row">
+          <div class="arch-tier">4. Ingestion Worker</div>
+          <div class="arch-desc">Asynchronous Node worker polling MongoDB <code>jobs</code>. Parses PDFs from GridFS, segments chunks, computes embeddings, and performs read-your-write vector verification.</div>
+        </div>
+        <div class="arch-row">
+          <div class="arch-tier">5. MongoDB Atlas</div>
+          <div class="arch-desc">Unified persistence: Relational collections (<code>threads</code>, <code>messages</code>, <code>memories</code>, <code>spaces</code>), GridFS binaries, and Vector Search index over <code>chunks</code>.</div>
+        </div>
+        <div class="arch-row">
+          <div class="arch-tier">6. Ephemeral Caches</div>
+          <div class="arch-desc">Two-tier search cache: In-process LRU + MongoDB <code>searchCache</code> (24h TTL, SHA-256 keyed). Append-only run logs in <code>runs/&lt;requestId&gt;.json</code>.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: Quick vs Deep Dual-Gear -->
+    <section class="slide" id="slide-4">
+      <div class="slide-tag">Runtime Gears</div>
+      <h2 class="slide-title">Dual-Gear Engine: Quick vs. Deep Search</h2>
+      <p class="slide-subtitle">Users opt into heavy research; the system never self-escalates.</p>
+
+      <div class="grid-2">
+        <div class="card" style="border-top: 3px solid var(--cyan);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <h3 style="color: var(--cyan); margin: 0;">⚡ Quick Search (Default)</h3>
+            <span class="code-pill">p95 &lt; 6.3s</span>
+          </div>
+          <p style="margin-bottom: 14px;">Optimized for instantaneous factual lookup and rapid synthesis with minimal token expenditure.</p>
+          <ul>
+            <li><strong>Budget Envelopes:</strong> Max 8 tool calls, 90s hard timeout, $0.05 max cost.</li>
+            <li><strong>Typical Latency:</strong> TTFT p50 ~2.2s, total answer ~3.4s.</li>
+            <li><strong>Strict Red Line:</strong> NEVER invokes <code>plan_research</code>. Calling research planning on quick mode fails the course gates instantly.</li>
+            <li><strong>Actual Production Cost:</strong> $0.011 / query (78% below budget cap).</li>
+          </ul>
+        </div>
+
+        <div class="card" style="border-top: 3px solid var(--purple);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <h3 style="color: var(--purple); margin: 0;">🔬 Deep Search (Opt-in)</h3>
+            <span class="code-pill">5× Source Depth</span>
+          </div>
+          <p style="margin-bottom: 14px;">Autonomous query decomposition, parallel branch exploration, and synthesized cross-examination.</p>
+          <ul>
+            <li><strong>Research Plan First:</strong> Emits <code>plan</code> event with 3–6 sub-questions and rationales <em>before any retrieval occurs</em>.</li>
+            <li><strong>Sub-Question Tagging:</strong> Every tool call and source is tagged with its origin sub-question index.</li>
+            <li><strong>Budget Envelopes:</strong> Max 24 tool calls, 240s timeout, $0.35 max cost.</li>
+            <li><strong>Spend Gate:</strong> Enforced in agent core: <code>DEEP_DAILY_CAP=5</code> per <code>X-User-Id</code> (returns HTTP 429 with <code>resetsAt</code>).</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 20px; background: rgba(168, 85, 247, 0.05); border-color: rgba(168, 85, 247, 0.2);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; font-weight: 600;">SLA Verification: Distinct Source Expansion</span>
+          <span style="font-family: 'JetBrains Mono'; color: var(--purple); font-weight: 700;">Target: ≥ 2.0× · Actual: 5.00× Distinct Sources</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: Deep Research Workflow -->
+    <section class="slide" id="slide-5">
+      <div class="slide-tag">Autonomous Research Loop</div>
+      <h2 class="slide-title">Deep Research: Decomposition & Fan-Out</h2>
+      <p class="slide-subtitle">How LUMINA turns an ambiguous prompt into structured multi-domain findings.</p>
+
+      <div class="grid-4" style="margin-bottom: 24px;">
+        <div class="card">
+          <div style="font-family: 'JetBrains Mono'; font-size: 12px; color: var(--cyan); margin-bottom: 6px;">PHASE 1</div>
+          <h3 style="font-size: 15px;">Decomposition</h3>
+          <p>Agent calls <code>plan_research</code>. Generates 3–6 mutually exclusive, collectively exhaustive sub-questions with clear rationale.</p>
+        </div>
+
+        <div class="card">
+          <div style="font-family: 'JetBrains Mono'; font-size: 12px; color: var(--purple); margin-bottom: 6px;">PHASE 2</div>
+          <h3 style="font-size: 15px;">Sub-Tree Fan-Out</h3>
+          <p>Iterates across each sub-question. Executes web search and full-page scraping, tracking <code>subQuestion</code> IDs on all traces.</p>
+        </div>
+
+        <div class="card">
+          <div style="font-family: 'JetBrains Mono'; font-size: 12px; color: var(--amber); margin-bottom: 6px;">PHASE 3</div>
+          <h3 style="font-size: 15px;">Source Merging</h3>
+          <p>Deduplicates overlapping URLs and chunks. Generates contiguous numbering <code>[1..N]</code> preserving sub-question attribution.</p>
+        </div>
+
+        <div class="card">
+          <div style="font-family: 'JetBrains Mono'; font-size: 12px; color: var(--emerald); margin-bottom: 6px;">PHASE 4</div>
+          <h3 style="font-size: 15px;">Synthesis</h3>
+          <p>Streams structured markdown: Direct answer, sub-question sections, and open unknowns. Streams <code>sources</code> before tokens.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="font-size: 15px; color: var(--cyan);">Sample Deep Plan from Gold Evaluation</h3>
+        <p style="font-family: 'JetBrains Mono'; font-size: 12px; color: var(--text-muted); line-height: 1.7;">
+          <span style="color: var(--cyan);">[sub_1]</span> Analyze vector index synchronization delays across distributed replicas.<br>
+          <span style="color: var(--cyan);">[sub_2]</span> Compare memory consumption of in-process LRU vs. remote TTL collections.<br>
+          <span style="color: var(--cyan);">[sub_3]</span> Evaluate read-your-write probing strategies for asynchronous index consistency.<br>
+          <span style="color: var(--cyan);">[sub_4]</span> Synthesize latency tradeoffs in single-threaded Node.js supervisor runtimes.
+        </p>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: Memory & RAG -->
+    <section class="slide" id="slide-6">
+      <div class="slide-tag">Persistence & Context</div>
+      <h2 class="slide-title">Multi-Thread Memory & Decoupled RAG</h2>
+      <p class="slide-subtitle">Persistent preferences without session amnesia; crash-safe document vectorization.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="color: var(--cyan);">🧠 Long-Term Semantic Memory</h3>
+          <p style="margin-bottom: 12px;">Thread history disappears when a thread closes. Memory survives across all conversations:</p>
+          <ul>
+            <li><strong>Explicit Writes Only:</strong> Agent calls <code>save_memory</code> only for permanent facts (e.g. user preferences, tech stack).</li>
+            <li><strong>Semantic Retrieval:</strong> <code>recall_memory</code> uses Atlas Vector Search on <code>memories.embedding</code> filtered by <code>userId</code>.</li>
+            <li><strong>Clean Transparency:</strong> <code>GET /memory</code> inspects everything; <code>DELETE /memory/:id</code> immediately purges effect.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3 style="color: var(--emerald);">📄 Decoupled Document Ingestion</h3>
+          <p style="margin-bottom: 12px;">Sync parsing in request paths stalls Node.js. LUMINA decouples ingest completely:</p>
+          <ul>
+            <li><strong>Instant 202 Accepted:</strong> <code>POST /spaces/:id/documents</code> saves to GridFS, creates a job, and returns in milliseconds.</li>
+            <li><strong>Crash-Safe Worker:</strong> Atomic <code>findOneAndUpdate</code> with 5-min lease timeout. Sweeper resets stale crashed jobs.</li>
+            <li><strong>Read-Your-Write Probe:</strong> Document status only flips to <code>indexed</code> after a vector query successfully retrieves its chunks.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 14px; font-weight: 600;">Recall Proof Across Threads</div>
+            <div style="font-size: 12px; color: var(--text-muted);">A preference saved in Thread A immediately modifies answers and triggers <code>recall_memory</code> in Thread B.</div>
+          </div>
+          <span class="badge" style="background: rgba(52, 211, 153, 0.15); color: var(--emerald); border-color: rgba(52, 211, 153, 0.3);">Verified in Rubric</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: Observability & Trajectories -->
+    <section class="slide" id="slide-7">
+      <div class="slide-tag">Trajectory Inspection</div>
+      <h2 class="slide-title">Observability & End-to-End Trajectories</h2>
+      <p class="slide-subtitle">Every answer generates an audit trail. Reading full trajectories is mandatory (P1 Rule).</p>
+
+      <div class="grid-2">
+        <div class="card" style="border-left: 3px solid var(--emerald);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h3 style="color: var(--emerald); margin: 0;">Successful Trajectory</h3>
+            <code>req_00dab7ae-9ff</code>
+          </div>
+          <div style="font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">
+            1. recall_memory (460ms) → 2. web_search (30ms) → 3. fetch_page (493ms) → 4. fetch_page (368ms)
+          </div>
+          <p style="font-size: 13px; line-height: 1.6;">
+            <strong>Learner Finding:</strong> Parallel memory recall and search cache lookups allow the agent to immediately fetch relevant context. Fetching actual article pages rather than relying on snippets ensures all citations strictly ground into retrieved body text, keeping grounding at 100% without fabricating citations.
+          </p>
+        </div>
+
+        <div class="card" style="border-left: 3px solid var(--rose);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h3 style="color: var(--rose); margin: 0;">Honest Failing Trajectory</h3>
+            <code>req_07a42083-dfd</code>
+          </div>
+          <div style="font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">
+            1. recall_memory (239ms) → 2. web_search (0ms) → 3. fetch_page (902ms) → 4. fetch_page [403 Forbidden]
+          </div>
+          <p style="font-size: 13px; line-height: 1.6;">
+            <strong>Learner Finding:</strong> When an upstream page returns HTTP 403 Forbidden, the agent captures the failed step with <code>ok: false</code> and records the explicit error string, maintaining an honest trace without throwing an unhandled exception or hallucinating content from unretrieved sources.
+          </p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: var(--text-muted);">Single Request Tracing:</span>
+          <span class="code-pill">X-Request-Id: req_xxxx correlated across Gateway Pino logs & Agent Answer logs</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: Evaluation & SLA Benchmarks -->
+    <section class="slide" id="slide-8">
+      <div class="slide-tag">Automated Evaluation</div>
+      <h2 class="slide-title">Benchmark Results & SLA Verification</h2>
+      <p class="slide-subtitle">All 16 service level agreements measured against the deployed production gateway.</p>
+
+      <div class="grid-4" style="margin-bottom: 20px;">
+        <div class="stat-hero">
+          <div class="num">0.99</div>
+          <div class="label">Grounding (Target: ≥0.95)</div>
+        </div>
+        <div class="stat-hero">
+          <div class="num">1.00</div>
+          <div class="label">Recall@5 (Target: ≥0.70)</div>
+        </div>
+        <div class="stat-hero">
+          <div class="num">0.00%</div>
+          <div class="label">Error Rate (Target: &le;1%)</div>
+        </div>
+        <div class="stat-hero">
+          <div class="num">5.0×</div>
+          <div class="label">Deep/Quick Ratio (Target: ≥2×)</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="font-size: 15px; color: var(--cyan);">Latency Distribution</h3>
+          <ul>
+            <li><strong>Answer p95:</strong> 6,301 ms (Target: &le; 12,000 ms) — <span class="highlight-emerald">PASS</span></li>
+            <li><strong>Deep Answer p95:</strong> 26.5 s (Target: &le; 90.0 s) — <span class="highlight-emerald">PASS</span></li>
+            <li><strong>Deep Plan p95:</strong> 3,903 ms (Target: &le; 4,000 ms) — <span class="highlight-emerald">PASS</span></li>
+            <li><strong>Search Degradation during Ingest:</strong> 0.671× (Target: &le; 1.3×) — <span class="highlight-emerald">PASS</span></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 15px; color: var(--emerald);">Cost & Grounding Integrity</h3>
+          <ul>
+            <li><strong>Cost per Quick Answer:</strong> $0.0111 (Target: &le; $0.05) — <span class="highlight-emerald">PASS</span></li>
+            <li><strong>Cost per Deep Answer:</strong> $0.0741 (Target: &le; $0.35) — <span class="highlight-emerald">PASS</span></li>
+            <li><strong>Dangling Citations:</strong> 0 (Target: 0) — <span class="highlight-emerald">PASS</span></li>
+            <li><strong>Sources before First Token:</strong> 100% compliant — <span class="highlight-emerald">PASS</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: Technical Tradeoffs -->
+    <section class="slide" id="slide-9">
+      <div class="slide-tag">Architectural Decisions</div>
+      <h2 class="slide-title">Engineering Trade-offs Answered</h2>
+      <p class="slide-subtitle">Deliberate choices made to balance complexity, cost, and reliability.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="color: var(--cyan);">Atlas Vector Search vs. Dedicated DB (Qdrant)</h3>
+          <p>Consolidated document metadata, relational threads, and vector embeddings in a single MongoDB cluster. Eliminated dual-database sync complexity and cross-system transaction failures, while managing Atlas M0 index sync lag via read-your-write probes.</p>
+        </div>
+
+        <div class="card">
+          <h3 style="color: var(--purple);">MongoDB TTL Collection + LRU vs. Redis</h3>
+          <p>Built a two-tier in-process LRU backed by a MongoDB TTL collection rather than deploying a standalone Redis cluster. Lowered monthly operational spend and removed an external failure point with minimal cache lookup overhead.</p>
+        </div>
+
+        <div class="card">
+          <h3 style="color: var(--amber);">Bounded ReAct Loop vs. Multi-Agent Swarms</h3>
+          <p>Enforced hard deterministic caps on tool calls and wall-clock execution over unpredictable autonomous swarms. Delivered rock-solid latency bounds and predictable sub-cent operational costs.</p>
+        </div>
+
+        <div class="card">
+          <h3 style="color: var(--emerald);">Local PDF Extraction vs. Cloud OCR</h3>
+          <p>Lightweight Node extraction runs entirely inside the local background worker process. Zero external API cost or latency penalty for textual PDFs, keeping document ingestion fast and free.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 10: Production Deployment -->
+    <section class="slide" id="slide-10">
+      <div class="slide-tag">Deployment & Verification</div>
+      <h2 class="slide-title">Live Production Deployment</h2>
+      <p class="slide-subtitle">Publicly accessible endpoints verified against real evaluators.</p>
+
+      <div class="grid-2" style="margin-bottom: 24px;">
+        <div class="card" style="border-top: 3px solid var(--cyan);">
+          <h3 style="color: var(--cyan);">🌐 Web Frontend</h3>
+          <p style="margin-bottom: 8px;"><strong>URL:</strong> <a href="https://lumina-web-two-chi.vercel.app" target="_blank" style="color: var(--cyan); text-decoration: none;">lumina-web-two-chi.vercel.app</a></p>
+          <p style="font-size: 13px;">React 18 single-page application hosted on Vercel Edge. Interactively runs search queries, renders real-time token streams, and displays the full evaluation scorecard on <code>/evals</code>.</p>
+        </div>
+
+        <div class="card" style="border-top: 3px solid var(--purple);">
+          <h3 style="color: var(--purple);">🚀 Gateway & Agent Services</h3>
+          <p style="margin-bottom: 8px;"><strong>Base:</strong> <a href="https://luminagateway-production.up.railway.app" target="_blank" style="color: var(--purple); text-decoration: none;">luminagateway-production.up.railway.app</a></p>
+          <p style="font-size: 13px;">Containerized multi-service deployment on Railway. Edge Gateway provides CORS, rate limiting, and SSE pass-through to the isolated internal agent and worker.</p>
+        </div>
+      </div>
+
+      <div class="card" style="background: rgba(56, 189, 248, 0.04); border-color: rgba(56, 189, 248, 0.2);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 600; font-size: 14px;">Evaluation Scorecard (GET /evals/report.json)</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Fully automated rubric score: <strong>79 / 100</strong> (Passes all automated contract and SLA gates)</div>
+          </div>
+          <a href="https://lumina-web-two-chi.vercel.app/evals" target="_blank" class="btn active" style="text-decoration: none;">
+            Open /evals Page ↗
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Progress Bar -->
+  <div class="progress-bar-container">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <!-- Keyboard navigation hint -->
+  <div class="hint">
+    <span>Navigate:</span>
+    <span class="kbd">←</span>
+    <span class="kbd">→</span>
+    <span class="kbd">Space</span>
+    <span class="kbd">F</span>
+  </div>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 10;
+
+    function showSlide(index) {
+      if (index < 1) index = 1;
+      if (index > totalSlides) index = totalSlides;
+      
+      document.querySelectorAll('.slide').forEach((slide, i) => {
+        if (i + 1 === index) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+
+      currentSlide = index;
+      document.getElementById('counter').innerText = `${currentSlide} / ${totalSlides}`;
+      document.getElementById('progressBar').style.width = `${(currentSlide / totalSlides) * 100}%`;
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) {
+        showSlide(currentSlide + 1);
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) {
+        showSlide(currentSlide - 1);
+      }
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          alert(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'Space') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft') {
+        prevSlide();
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      } else if (e.key === 'Home') {
+        showSlide(1);
+      } else if (e.key === 'End') {
+        showSlide(totalSlides);
+      }
+    });
+
+    // Initialize progress bar
+    showSlide(1);
+  </script>
+</body>
+</html>

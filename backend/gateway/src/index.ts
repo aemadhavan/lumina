@@ -172,6 +172,18 @@ app.get('/health', async (_req, res) => {
 
 // GET /evals/report.json
 app.get('/evals/report.json', async (_req, res) => {
+  // Prioritize upstream Agent service (loads dynamically updated report from MongoDB Atlas)
+  try {
+    const upstream = await fetch(`${env.agentUrl}/evals/report.json`);
+    if (upstream.ok) {
+      const data = await upstream.text();
+      res.setHeader('content-type', 'application/json');
+      return res.status(200).send(data);
+    }
+  } catch {
+    // continue
+  }
+
   const reportPaths = [
     resolve(process.cwd(), 'reports/report.json'),
     resolve(process.cwd(), 'eval/report.json'),
@@ -191,23 +203,32 @@ app.get('/evals/report.json', async (_req, res) => {
     }
   }
 
-  // Fallback: proxy to agent service to retrieve report from MongoDB
-  try {
-    const upstream = await fetch(`${env.agentUrl}/evals/report.json`);
-    if (upstream.ok) {
-      const data = await upstream.text();
-      res.setHeader('content-type', 'application/json');
-      return res.status(200).send(data);
-    }
-  } catch {
-    // continue
-  }
-
   res.status(404).json({
     error: 'evaluation report not generated yet. Run node eval/eval.mjs first.',
     status: 404,
     requestId: String(res.locals.requestId)
   });
+});
+
+// GET /slides - serve interactive project presentation slides
+app.get('/slides', (_req, res) => {
+  const slidesPaths = [
+    resolve(process.cwd(), 'presentation/slides.html'),
+    resolve(process.cwd(), '../../presentation/slides.html'),
+    resolve(__dirname, '../../../presentation/slides.html'),
+    resolve(__dirname, '../../presentation/slides.html')
+  ];
+
+  for (const p of slidesPaths) {
+    if (existsSync(p)) {
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      res.removeHeader('x-frame-options');
+      res.setHeader('content-security-policy', 'frame-ancestors *');
+      return res.sendFile(p);
+    }
+  }
+
+  res.status(404).send('Presentation slides not found');
 });
 
 // ---------------------------------------------------------------- Reverse Proxy & SSE Pass-Through
