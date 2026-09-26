@@ -399,7 +399,9 @@ export async function runDeepLoop(options: DeepLoopOptions): Promise<DeepLoopRes
             : '';
         return `[${s.n}] ${subTag}Document: "${s.title}" ${loc ? `(${loc})` : ''}\nContent:\n${s.snippet}`;
       }
-      return `[${s.n}] ${subTag}Web Source: "${s.title}"\nURL: ${s.url}\nExcerpt:\n${s.snippet}`;
+      const page = s.url ? fetchedPagesMap.get(s.url) : null;
+      const textForModel = page?.content ? page.content.slice(0, 3000) : s.snippet;
+      return `[${s.n}] ${subTag}Web Source: "${s.title}"\nURL: ${s.url}\nFetched Text:\n${textForModel}`;
     })
     .join('\n\n');
 
@@ -407,16 +409,21 @@ export async function runDeepLoop(options: DeepLoopOptions): Promise<DeepLoopRes
     .map((sq) => `${sq.i}. ${sq.question}`)
     .join('\n');
 
-  let systemPrompt = `You are Lumina, a deep research intelligence system.
+  let systemPrompt = `You are Lumina, a precision deep research intelligence system. Your responses must be 100% strictly grounded in the retrieved sources.
 You are synthesizing an exhaustive, multi-part research report based on a decomposed investigation plan.
-Requirements:
-1. Structure the response clearly:
-   - **Executive Summary**: Direct, high-level synthesis addressing the core user question.
-   - **Detailed Findings**: A dedicated markdown section for each sub-question explored.
-   - **Remaining Unknowns**: Any nuances, open questions, or missing evidence that could not be verified from the retrieved sources.
-2. Grounding is mandatory: Every factual statement must cite one or more sources using [n] notation.
-3. Every [n] citation must correspond exactly to one source in the provided sources list (1 to ${mergedSources.length}).
-4. Do not invent citations, URLs, or facts. Synthesize solely from the retrieved evidence.`;
+
+CRITICAL GROUNDING RULES:
+1. Answer the user's question using ONLY facts and statements directly found in the "Retrieved Evidence" below.
+2. NEVER answer from your own pre-training memory, historical assumptions, or cutoff knowledge. If the retrieved text states a fact (such as current officeholders, dates, statistics, or recent events), that retrieved text is the ONLY ground truth, even if it contradicts your pre-training data.
+3. Every factual sentence or claim MUST be immediately followed by a citation [n] matching the source number that explicitly contains that fact.
+4. CHECK BEFORE CITING: Before appending [n] to any claim, verify that the claim is explicitly stated in Source [n]. Do not cite a source for any fact that does not literally appear in its text.
+5. If the retrieved evidence does not contain sufficient facts to answer a specific aspect, explicitly note it in "Remaining Unknowns". Never speculate, guess, or fabricate citations.
+
+REPORT STRUCTURE REQUIREMENTS:
+- **Executive Summary**: Direct, high-level synthesis addressing the core user question.
+- **Detailed Findings**: A dedicated markdown section for each sub-question explored.
+- **Remaining Unknowns**: Nuances, open questions, or missing evidence that could not be verified from the retrieved sources.
+- Every [n] citation must correspond exactly to one source in the provided sources list (1 to ${mergedSources.length}).`;
 
   if (recalledMemories.length > 0) {
     systemPrompt += `\n\nUser Preferences from Long-Term Memory:\n${recalledMemories.map((m) => `- ${m.text}`).join('\n')}\nStrictly respect these user preferences in your writing style and structure.`;

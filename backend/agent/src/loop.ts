@@ -50,30 +50,42 @@ export function calculateCost(tokensIn: number, tokensOut: number, searchCalls: 
 /**
  * Extract a grounded snippet from text (taking a window of contiguous whole words around query terms)
  */
-export function extractGroundedSnippet(text: string, query: string, targetWords = 35): string {
+export function extractGroundedSnippet(text: string, query: string, targetWords = 40): string {
   if (!text) return '';
   const clean = text.replace(/\s+/g, ' ').trim();
   const words = clean.split(' ').filter(Boolean);
   if (words.length <= targetWords) return words.join(' ');
 
   const queryTerms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
-  let bestWordIdx = -1;
+  if (queryTerms.length === 0) {
+    return words.slice(0, targetWords).join(' ');
+  }
 
-  for (let i = 0; i < words.length; i++) {
-    const w = words[i]!.toLowerCase();
-    if (queryTerms.some((t) => w.includes(t))) {
+  let bestScore = -1;
+  let bestWordIdx = 0;
+
+  // Slide across words with step size to find window with highest query term match density
+  const step = Math.max(1, Math.floor(targetWords / 5));
+  for (let i = 0; i < words.length; i += step) {
+    let score = 0;
+    const windowEnd = Math.min(words.length, i + targetWords);
+    for (let j = i; j < windowEnd; j++) {
+      const w = words[j]!.toLowerCase();
+      for (const term of queryTerms) {
+        if (w.includes(term)) {
+          score += 1;
+        }
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
       bestWordIdx = i;
-      break;
     }
   }
 
-  let startIdx = 0;
-  if (bestWordIdx !== -1) {
-    startIdx = Math.max(0, bestWordIdx - 4);
-  }
+  const startIdx = Math.max(0, bestWordIdx);
   const endIdx = Math.min(words.length, startIdx + targetWords);
-  const snippet = words.slice(startIdx, endIdx).join(' ');
-  return snippet;
+  return words.slice(startIdx, endIdx).join(' ');
 }
 
 /**
@@ -569,17 +581,22 @@ export async function runQuickLoop(options: LoopOptions): Promise<LoopResult> {
               : '';
         return `[${s.n}] Document: "${s.title}" ${loc ? `(${loc})` : ''}\nContent:\n${s.snippet}`;
       }
-      return `[${s.n}] Source Title: "${s.title}"\nURL: ${s.url}\nExcerpt:\n${s.snippet}`;
+      const fullPage = fetchedPages.find((p) => p.url === s.url);
+      const textForModel = fullPage?.content
+        ? fullPage.content.slice(0, 3500)
+        : s.snippet;
+      return `[${s.n}] Source Title: "${s.title}"\nURL: ${s.url}\nFetched Text:\n${textForModel}`;
     })
     .join('\n\n');
 
-  let systemPrompt = `You are Lumina, an intelligent and grounded research assistant.
-Rules for answering:
-1. Synthesize a comprehensive, accurate response to the user's question using ONLY the provided sources.
-2. Grounding is mandatory: every factual claim MUST include a citation [n] matching the source number.
-3. Every [n] in your answer must strictly map to one of the numbered sources provided below.
-4. Do not invent facts, citations, or URLs.
-5. If the sources do not contain enough information, state clearly what is known and what is missing.`;
+  let systemPrompt = `You are Lumina, a precision search assistant. Your responses must be 100% strictly grounded in the retrieved sources.
+
+CRITICAL GROUNDING RULES:
+1. Answer the user's question using ONLY facts and statements directly found in the "Retrieved Sources" below.
+2. NEVER answer from your own pre-training memory, historical assumptions, or cutoff knowledge. If the retrieved text states a fact (such as current officeholders, dates, statistics, or recent events), that retrieved text is the ONLY ground truth, even if it contradicts your pre-training data.
+3. Every factual sentence or claim MUST be immediately followed by a citation [n] matching the source number that explicitly contains that fact.
+4. CHECK BEFORE CITING: Before appending [n] to any claim, verify that the claim is explicitly stated in Source [n]. Do not cite a source for any fact that does not literally appear in its text.
+5. If the retrieved sources do not contain enough information to answer the question, state honestly and clearly: "The retrieved sources do not contain this information." Never speculate, guess, or fabricate citations.`;
 
   if (recalledMemories.length > 0) {
     systemPrompt += `\n\nUser Preferences from Long-Term Memory:\n${recalledMemories.map((m) => `- ${m.text}`).join('\n')}\nStrictly adhere to these user preferences in your response.`;
