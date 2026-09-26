@@ -4,10 +4,12 @@ import { pinoHttp } from 'pino-http';
 import pino from 'pino';
 import http from 'node:http';
 import https from 'node:https';
-import { URL } from 'node:url';
+import { URL, fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 import {
   AskBody,
   CreateSpaceBody,
@@ -215,8 +217,9 @@ app.get('/slides', (_req, res) => {
   const slidesPaths = [
     resolve(process.cwd(), 'presentation/slides.html'),
     resolve(process.cwd(), '../../presentation/slides.html'),
-    resolve(__dirname, '../../../presentation/slides.html'),
-    resolve(__dirname, '../../presentation/slides.html')
+    resolve(HERE, '../../../presentation/slides.html'),
+    resolve(HERE, '../../presentation/slides.html'),
+    resolve(HERE, '../presentation/slides.html')
   ];
 
   for (const p of slidesPaths) {
