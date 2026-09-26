@@ -212,7 +212,7 @@ app.get('/evals/report.json', async (_req, res) => {
   });
 });
 
-// GET /slides - serve interactive project presentation slides
+// GET /slides - serve interactive project presentation slides (with click-to-advance, floating arrows, and dots navigation)
 app.get('/slides', (_req, res) => {
   const slidesPaths = [
     resolve(process.cwd(), 'presentation/slides.html'),
